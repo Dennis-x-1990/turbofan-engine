@@ -473,16 +473,16 @@ function module(key,off,base=[0,0,0]){
   engineRoot.add(g);MODS[key]=g;return g;
 }
 
-const gInlet  = module('inlet',[0,0,-0.9]);
-const gComp   = module('compressor',[0,0,-0.45]);
-const gCase   = module('casing',[0,0.12,-0.3]);
-const gComb   = module('combustor',[0,0,0]);
-const gTurb   = module('turbine',[0,0,0.35]);
-const gAB     = module('ab',[0,0,0.6]);
-const gNozzle = module('nozzle',[0,0,0.85]);
-const gShaft  = module('shaft',[0,-0.5,-0.2]);
-const gGear   = module('gearbox',[0,-0.5,-0.35]);
-const gMounts = module('mounts',[0,-0.35,0.4]);
+const gInlet  = module('inlet',[0,0,-1.7]);
+const gComp   = module('compressor',[0,0,-1.0]);
+const gCase   = module('casing',[0,0.28,-0.55]);
+const gComb   = module('combustor',[0,0,-0.15]);
+const gTurb   = module('turbine',[0,0,0.5]);
+const gAB     = module('ab',[0,0,1.05]);
+const gNozzle = module('nozzle',[0,0,1.65]);
+const gShaft  = module('shaft',[0,-0.55,-0.35]);
+const gGear   = module('gearbox',[0,-0.55,-0.5]);
+const gMounts = module('mounts',[0,-0.4,0.25]);
 
 /* ---------- 材质 ---------- */
 const mMil   = M('casing',Object.assign({},PAL.mil),{shell:true});     // 军灰机匣(壳)
@@ -1231,7 +1231,7 @@ window._plumeMats=[];
     window._plumeMats.push(m);
     const p=new THREE.Mesh(cylZ(r1,r2,len,32,true),m);
     p.position.z=EXITZ+len/2-0.15;
-    engineRoot.add(p);
+    gNozzle.add(p);
   });
   // 激波菱形(开加力)
   for(let i=0;i<8;i++){
@@ -1239,7 +1239,7 @@ window._plumeMats=[];
       blending:THREE.NormalBlending,depthWrite:false,toneMapped:false});
     m.clippingPlanes=clipPlanes;
     const dm=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),m);
-    dm.visible=true; engineRoot.add(dm);
+    dm.visible=true; gNozzle.add(dm);
     diamonds.push(dm);
   }
 }
