@@ -30,6 +30,14 @@ P-V 示功图与慢放观察 👇
 
 👉 分支:[`single-cylinder`](https://github.com/peter-pan-x/turbofan-engine/tree/single-cylinder)
 
+### 04 · 直列四缸汽油发动机 Inline-4 —— `four-cylinder-engine` 分支
+2.0L DOHC 16V:平面曲轴 0°-180°-180°-0°,发火顺序 1-3-4-2,正时皮带 2:1,
+纵剖视角同时看到四套活塞连杆的不同冲程 👇
+
+![四缸发动机纵剖](docs/preview-inline4.png)
+
+👉 分支:[`four-cylinder-engine`](https://github.com/peter-pan-x/turbofan-engine/tree/four-cylinder-engine)
+
 ## 如何运行
 
 每个分支 / 目录里只有一个 `index.html`:
@@ -47,5 +55,4 @@ P-V 示功图与慢放观察 👇
 | `main` | 涡扇 Turbofan | 大涵道比 · 双转子 · 内外涵气流 |
 | `turbojet-engine` | 涡喷 Turbojet | 加力燃烧室 · 可调喷口 · 激波菱形 |
 | `single-cylinder` | 单缸机 Single-Cylinder | 曲柄连杆运动学 · 示功图 · 慢放 |
-
-> 另有一台直列四缸 DOHC 16V 在本地制作中,稍后补充分支。
+| `four-cylinder-engine` | 四缸机 Inline-4 | 平面曲轴 · 发火顺序 1-3-4-2 · DOHC 16V |
