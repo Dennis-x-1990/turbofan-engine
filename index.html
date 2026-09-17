@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F-35 战斗机 · 交互式3D解剖 | Lightning II</title>
+<style>
+  :root{
+    --ink:#191d22; --ink2:#4a515b; --line:rgba(20,26,34,.10);
+    --panel:rgba(255,255,255,.72); --accent:#ff6a2a; --blue:#2563eb;
+    --mono:"SF Mono","Cascadia Code",Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden}
+  body{font-family:"Inter","HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--ink); background:#e9ebef;}
+  canvas{display:block}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(ellipse at 50% 42%,transparent 52%,rgba(28,34,44,.16) 100%);}
+
+  #boot{position:fixed;inset:0;z-index:100;background:linear-gradient(180deg,#f2f4f8,#d8dbe1);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    transition:opacity .7s ease;letter-spacing:.08em}
+  #boot.hide{opacity:0;pointer-events:none}
+  #boot .t{font-size:22px;font-weight:700;letter-spacing:.3em;color:#22262c}
+  #boot .s{font-size:12px;color:#69707b;letter-spacing:.2em}
+  #bootBar{width:220px;height:3px;border-radius:3px;background:rgba(0,0,0,.10);overflow:hidden}
+  #bootBar i{display:block;height:100%;width:40%;border-radius:3px;background:var(--accent);
+    animation:slide 1.1s ease-in-out infinite}
+  @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+
+  .panel{background:var(--panel);backdrop-filter:blur(14px) saturate(1.2);
+    border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 10px 30px rgba(25,32,44,.10),0 1px 0 rgba(255,255,255,.7) inset}
+
+  #hudTitle{position:fixed;top:18px;left:20px;z-index:10;padding:14px 18px 12px;max-width:340px}
+  #hudTitle .en{font-size:11px;letter-spacing:.30em;color:#8a919c;font-weight:600}
+  #hudTitle h1{font-size:19px;font-weight:800;letter-spacing:.02em;margin:2px 0 4px}
+  #hudTitle h1 b{color:var(--accent)}
+  #hudTitle .sub{font-size:11.5px;color:var(--ink2);line-height:1.6}
+
+  #stats{position:fixed;top:18px;right:20px;z-index:10;display:flex;gap:8px;padding:10px 12px}
+  .gauge{min-width:70px;text-align:center}
+  .gauge .k{font-size:10px;letter-spacing:.12em;color:#8a919c;font-weight:600}
+  .gauge .v{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:2px}
+  .gauge .u{font-size:9.5px;color:#9aa1ac;margin-left:2px}
+  .gauge.pow .v{color:var(--blue)}
+
+  #dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10;
+    display:flex;flex-direction:column;gap:8px;padding:12px 14px;min-width:640px}
+  .dockRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+  .grp{display:flex;gap:4px;background:rgba(20,26,34,.05);border-radius:11px;padding:3px}
+  .btn{border:0;background:transparent;color:var(--ink2);font:inherit;font-size:12px;font-weight:600;
+    padding:7px 12px;border-radius:9px;cursor:pointer;letter-spacing:.04em;white-space:nowrap;transition:all .18s}
+  .btn:hover{color:var(--ink);background:rgba(255,255,255,.75)}
+  .btn.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(25,32,44,.14)}
+  .btn.tg{background:#111418;color:#fff;font-weight:700}
+  .btn.tg.on{background:var(--accent);box-shadow:0 4px 16px rgba(255,106,42,.45)}
+  .btn.ab{background:#3b2a18;color:#ffd9a8;font-weight:800;border:1px solid rgba(255,150,50,.4)}
+  .btn.ab.on{background:linear-gradient(90deg,#ff6a2a,#ffb340);color:#fff;
+    box-shadow:0 0 18px rgba(255,140,40,.7);animation:abPulse 1s infinite}
+  @keyframes abPulse{50%{box-shadow:0 0 30px rgba(255,160,60,.9)}}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+
+  #info{position:fixed;top:86px;right:20px;z-index:10;width:308px;max-height:calc(100% - 200px);
+    overflow:auto;padding:16px 18px;transform:translateX(360px);opacity:0;transition:all .35s cubic-bezier(.2,.8,.2,1)}
+  #info.show{transform:none;opacity:1}
+  #info::-webkit-scrollbar{width:4px}
+  #info::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px}
+  #infoChips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+  .chip{font-size:10.5px;padding:4px 8px;border-radius:7px;background:rgba(20,26,34,.06);
+    color:var(--ink2);cursor:pointer;border:1px solid transparent;white-space:nowrap}
+  .chip:hover{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+  .chip.on{background:var(--accent);color:#fff}
+  #infoName{font-size:18px;font-weight:800}
+  #infoEn{font-size:11px;letter-spacing:.18em;color:#8a919c;margin:2px 0 10px}
+  #infoSpecs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+  #infoSpecs span{font-size:10.5px;font-family:var(--mono);background:rgba(37,99,235,.08);
+    color:#2456b8;padding:4px 8px;border-radius:7px}
+  #infoDesc{font-size:12.5px;line-height:1.85;color:#333a44}
+  #infoTip{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,106,42,.07);
+    border:1px solid rgba(255,106,42,.18);font-size:11.5px;line-height:1.75;color:#8c4a1f}
+  #infoTip::before{content:"◈ 小知识  ";font-weight:800;color:var(--accent)}
+  #infoBtns{display:flex;gap:8px;margin-top:12px}
+  #infoBtns .btn{background:rgba(20,26,34,.06);border-radius:9px}
+  #btnCloseInfo{position:absolute;top:10px;right:12px;font-size:14px;color:#9aa1ac;padding:4px 8px}
+
+  #labels{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+  .lab{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;
+    font-size:11px;font-weight:600;color:#2a2f37;background:rgba(255,255,255,.82);
+    border:1px solid rgba(20,26,34,.12);padding:3px 9px;border-radius:20px;white-space:nowrap;
+    box-shadow:0 3px 10px rgba(25,32,44,.12);transition:opacity .2s, background .2s;backdrop-filter:blur(6px)}
+  .lab::after{content:"";position:absolute;left:50%;bottom:-5px;width:1px;height:5px;
+    background:rgba(20,26,34,.35);transform:translateX(-50%)}
+  .lab:hover,.lab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .lab.dim{opacity:.35}
+
+  #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%) translateY(8px);z-index:20;
+    padding:9px 18px;font-size:12px;font-weight:600;color:#fff;background:rgba(24,28,34,.88);
+    border-radius:24px;opacity:0;pointer-events:none;transition:all .3s;letter-spacing:.05em}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  #hint{position:fixed;left:20px;bottom:16px;z-index:9;padding:10px 16px;font-size:11.5px;
+    color:var(--ink2);letter-spacing:.04em}
+  #hint b{color:var(--ink)}
+
+  @media (max-width:900px){
+    #dock{min-width:0;width:calc(100% - 16px)}
+    #info{width:280px}
+    #hudTitle{max-width:250px}
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="boot">
+  <div class="t">F-35&nbsp;LIGHTNING&nbsp;II</div>
+  <div id="bootBar"><i></i></div>
+  <div class="s">正在铆接蒙皮、雕刻锯齿分缝线 …</div>
+</div>
+<div id="vignette"></div>
+<div id="labels"></div>
+
+<header id="hudTitle" class="panel">
+  <div class="en">F-35A · LIGHTNING II · INTERACTIVE 3D</div>
+  <h1>F-35 战斗机 <b>交互解剖</b></h1>
+  <div class="sub">单发隐身多用途战斗机 · F135 发动机<br>锯齿蒙皮 / 内置弹舱 / DSI 进气道 三维演示</div>
+</header>
+
+<div id="stats" class="panel">
+  <div class="gauge pow"><div class="k">推力</div><div class="v"><span id="thrv">0</span><span class="u">kN</span></div></div>
+  <div class="gauge"><div class="k">状态</div><div class="v" id="modev" style="font-size:14px;padding-top:3px">地面</div></div>
+</div>
+
+<aside id="info" class="panel">
+  <button id="btnCloseInfo" class="btn">✕</button>
+  <div id="infoChips"></div>
+  <div id="infoName">整机概览</div>
+  <div id="infoEn">F-35A · SINGLE ENGINE STEALTH</div>
+  <div id="infoSpecs"></div>
+  <div id="infoDesc"></div>
+  <div id="infoTip" style="display:none"></div>
+  <div id="infoBtns">
+    <button class="btn" id="btnFocus">◎ 聚焦部件</button>
+    <button class="btn" id="btnDeselect">取消选择</button>
+  </div>
+</aside>
+
+<div id="dock" class="panel">
+  <div class="dockRow">
+    <button class="btn tg" id="tgBay">武器舱 开</button>
+    <button class="btn tg" id="tgGear">起落架 收</button>
+    <button class="btn tg" id="tgCanopy">座舱盖 开</button>
+    <button class="btn ab" id="btnAB">🔥 加力 OFF</button>
+  </div>
+  <div class="dockRow">
+    <div class="grp" id="grpView">
+      <button class="btn on" data-view="hero">整机</button>
+      <button class="btn" data-view="front">正面</button>
+      <button class="btn" data-view="top">俯视</button>
+      <button class="btn" data-view="rear">尾部</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp" id="grpMode">
+      <button class="btn on" data-mode="full">完整</button>
+      <button class="btn" data-mode="cut">剖面切视</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <button class="btn" id="tgSurf">舵面演示</button>
+      <button class="btn on" id="tgLabels">标注</button>
+      <button class="btn" id="tgRotate">环绕</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="hint" class="panel"><b>拖动</b> 旋转 · <b>滚轮</b> 缩放 · <b>点击部件</b> 查看讲解 · <b>座舱盖</b>/<b>弹舱</b>/<b>加力</b> 都能开<span class="x" id="hintX">✕</span></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* ================= 工具 ================= */
+const $=id=>document.getElementById(id);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+const D2R=Math.PI/180;
+
+const state={ mode:'full', labels:true, rotate:false,
+  bay:false, gear:true, ab:false, surf:false, canopyOpen:false,
+  bayT:0, gearT:1, abT:0, canT:0,
+  selected:null, hovered:null };
+
+/* ================= 渲染基础 ================= */
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(Math.max(320,innerWidth||1500),Math.max(240,innerHeight||900));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.localClippingEnabled=true;
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=makeBackgroundTexture();
+
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,0.1,300);
+camera.position.set(-15,7.5,-16);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.minDistance=4; controls.maxDistance=90;
+controls.maxPolarAngle=1.52;
+controls.target.set(7.5,0.8,0);
+controls.autoRotateSpeed=0.8;
+
+const pmrem=new THREE.PMREMGenerator(renderer);
+scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture;
+
+scene.add(new THREE.HemisphereLight(0xe3e9f2,0xc8ccd2,0.78));
+const key=new THREE.DirectionalLight(0xfff3e6,2.35);
+key.position.set(6,20,-15);
+key.castShadow=true; key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-14; key.shadow.camera.right=14;
+key.shadow.camera.top=12;  key.shadow.camera.bottom=-8;
+key.shadow.camera.near=1;  key.shadow.camera.far=60;
+key.shadow.radius=6; key.shadow.bias=-0.0004;
+scene.add(key);
+const rim=new THREE.DirectionalLight(0xd8e6ff,1.15);
+rim.position.set(-16,9,14); scene.add(rim);
+const front=new THREE.DirectionalLight(0xfff0dd,0.8);
+front.position.set(-8,4,-15); scene.add(front);
+const fill=new THREE.DirectionalLight(0xffffff,0.22);
+fill.position.set(0,-6,10); scene.add(fill);
+
+/* 摄影台 */
+{
+  const cat=new THREE.Mesh(new THREE.CircleGeometry(26,72),new THREE.ShadowMaterial({opacity:0.22}));
+  cat.rotation.x=-Math.PI/2; cat.position.y=-1.925; cat.receiveShadow=true; scene.add(cat);
+  const plat=new THREE.Mesh(new THREE.CylinderGeometry(17,17.8,0.24,96),
+    new THREE.MeshStandardMaterial({color:0x83888f,roughness:1.0,metalness:0.04,envMapIntensity:0.3}));
+  plat.position.y=-2.055; plat.receiveShadow=true; scene.add(plat);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(17.1,0.02,8,140),
+    new THREE.MeshBasicMaterial({color:0xb9bec7}));
+  ring.rotation.x=Math.PI/2; ring.position.y=-1.915; scene.add(ring);
+}
+
+addEventListener('resize',()=>{
+  const w=Math.max(320,innerWidth||1500),h=Math.max(240,innerHeight||900);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+});
+
+function makeBackgroundTexture(){
+  const c=document.createElement('canvas'); c.width=32; c.height=512;
+  const g=c.getContext('2d');
+  const grd=g.createLinearGradient(0,0,0,512);
+  grd.addColorStop(0,'#eef0f4'); grd.addColorStop(0.55,'#e2e5ea'); grd.addColorStop(1,'#c3c7ce');
+  g.fillStyle=grd; g.fillRect(0,0,32,512);
+  const tx=new THREE.CanvasTexture(c); tx.colorSpace=THREE.SRGBColorSpace;
+  return tx;
+}
+
+/* ================= 蒙皮分缝线纹理(套装质感核心) ================= */
+function skinTexture(w=1024,h=1024,dir='h'){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const g=c.getContext('2d');
+  g.fillStyle='#969ca3'; g.fillRect(0,0,w,h);
+  // 大块色斑
+  for(let i=0;i<50;i++){
+    g.fillStyle=`rgba(${Math.random()<0.5?'70,76,84':'220,226,232'},${0.03+Math.random()*0.04})`;
+    g.fillRect(Math.random()*w,Math.random()*h,60+Math.random()*260,30+Math.random()*140);
+  }
+  const line=(x1,y1,x2,y2,alpha=0.55,lw=1.6)=>{
+    g.strokeStyle=`rgba(96,102,110,${alpha})`; g.lineWidth=lw;
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+  };
+  // 长缝线
+  const n=dir==='h'?10:14;
+  for(let i=1;i<n;i++){
+    const y=i*h/n+(Math.random()-0.5)*10;
+    if(Math.random()<0.5) line(0,y,w,y,0.5);
+  }
+  for(let i=1;i<7;i++){
+    const x=i*w/7+(Math.random()-0.5)*14;
+    line(x,0,x,h,0.4);
+  }
+  // 锯齿缝线(F-35 标志性)×3 组
+  for(let k=0;k<3;k++){
+    const y0=h*(0.2+Math.random()*0.6);
+    g.strokeStyle='rgba(96,102,110,0.6)'; g.lineWidth=1.7;
+    g.beginPath();
+    let x=Math.random()*w*0.4, y=y0, up=Math.random()<0.5;
+    g.moveTo(x,y);
+    for(let s=0;s<26;s++){
+      x+=14+Math.random()*8; y+=up?-9:9; up=!up;
+      g.lineTo(x,y);
+    }
+    g.stroke();
+  }
+  // 维护口盖
+  for(let i=0;i<46;i++){
+    const pw=30+Math.random()*90, ph=18+Math.random()*46;
+    const px=Math.random()*(w-pw), py=Math.random()*(h-ph);
+    g.fillStyle=Math.random()<0.5?'rgba(70,76,84,0.10)':'rgba(225,230,236,0.09)';
+    g.fillRect(px,py,pw,ph);
+    g.strokeStyle='rgba(90,96,104,0.65)'; g.lineWidth=1.6;
+    g.strokeRect(px,py,pw,ph);
+  }
+  // 铆钉排
+  for(let i=0;i<5;i++){
+    const y=Math.random()*h;
+    g.fillStyle='rgba(80,86,94,0.5)';
+    for(let x=8;x<w-8;x+=11) g.fillRect(x,y,1.6,1.6);
+  }
+  const tx=new THREE.CanvasTexture(c);
+  tx.colorSpace=THREE.SRGBColorSpace;
+  tx.anisotropy=8; tx.wrapS=tx.wrapT=THREE.RepeatWrapping;
+  return tx;
+}
+function turbineTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=512;
+  const g=c.getContext('2d');
+  g.fillStyle='#212428'; g.fillRect(0,0,512,512);
+  g.translate(256,256);
+  for(let i=0;i<42;i++){
+    g.rotate(Math.PI*2/42);
+    g.fillStyle=i%2?'#3c4148':'#34383e';
+    g.beginPath(); g.moveTo(0,-6); g.lineTo(238,-26); g.lineTo(238,26); g.lineTo(0,6); g.fill();
+  }
+  g.fillStyle='#191b1e'; g.beginPath(); g.arc(0,0,54,0,7); g.fill();
+  const tx=new THREE.CanvasTexture(c);
+  tx.colorSpace=THREE.SRGBColorSpace; tx.anisotropy=8;
+  return tx;
+}
+
+/* ================= 材质体系 ================= */
+const clipPlanes=[];
+const partMats={};
+function regPart(id,m){
+  m.clippingPlanes=clipPlanes; m.clipShadows=true;
+  m.userData.baseE={hex:m.emissive?m.emissive.getHex():0,i:m.emissiveIntensity??1};
+  (partMats[id]??=[]).push(m); return m;
+}
+function M(id,params,opts={}){
+  const m=new THREE.MeshPhysicalMaterial(Object.assign({side:THREE.DoubleSide},params));
+  regPart(id,m); return m;
+}
+function setHL(id,level){
+  const mats=partMats[id]; if(!mats)return;
+  mats.forEach(m=>{
+    if(!m.emissive)return;
+    const b=m.userData.baseE;
+    if(level===0){m.emissive.setHex(b.hex);m.emissiveIntensity=b.i;}
+    else{m.emissive.setHex(0xff5a1e);m.emissiveIntensity=Math.max(b.i,0)+(level===2?0.30:0.12);}
+  });
+}
+
+const fusTex=skinTexture(1024,1024,'h');
+const wingTex=skinTexture(1024,512,'v');
+const mSkin = M('skin',{color:0xffffff,map:fusTex,metalness:0.10,roughness:0.62,
+  bumpMap:fusTex,bumpScale:0.5,clearcoat:0.25,clearcoatRoughness:0.5,envMapIntensity:1.5});
+const mSkinD= M('skin',{color:0x9ba1a8,map:wingTex,metalness:0.10,roughness:0.66,
+  bumpMap:wingTex,bumpScale:0.5,envMapIntensity:1.5});
+const mNose = M('radome',{color:0x7e848c,metalness:0.3,roughness:0.5});
+const mGlass= M('canopy',{color:0x6b5426,metalness:0.9,roughness:0.08,
+  transparent:true,opacity:0.9,clearcoat:1.0,clearcoatRoughness:0.05,envMapIntensity:1.9});
+const mDark = M('bay',{color:0x2b2e33,metalness:0.6,roughness:0.7});
+const mMis  = M('missile',{color:0xdadde2,metalness:0.3,roughness:0.35});
+const mNoz  = M('nozzle',{color:0x6f665c,metalness:0.9,roughness:0.42,
+  emissive:0x883311,emissiveIntensity:0});
+const mNozIn= M('nozzle',{color:0xa9adb2,metalness:0.9,roughness:0.35});
+const mTire = M('gear',{color:0x24262a,metalness:0.2,roughness:0.85});
+const mStrut= M('gear',{color:0xd6dade,metalness:0.9,roughness:0.3});
+const mEots = M('eots',{color:0x23262a,metalness:0.7,roughness:0.25,clearcoat:0.8});
+const mFin  = M('fin',{color:0x9ba1a8,metalness:0.05,roughness:0.75,
+  emissive:0x3a3d42,emissiveIntensity:0.35});
+const mSeat = M('canopy',{color:0x2e3136,metalness:0.4,roughness:0.6});
+const mPilot= M('canopy',{color:0x4a4f38,metalness:0.2,roughness:0.7});
+
+/* ================= 几何工具 ================= */
+function loft(secs,ax){
+  const S=secs.length,N=secs[0].pts.length;
+  const pos=[],uv=[],idx=[];
+  secs.forEach((sec,i)=>{
+    sec.pts.forEach((p,j)=>{
+      if(ax==='x')pos.push(sec.s,p[0],p[1]);
+      else if(ax==='y')pos.push(p[0],sec.s,p[1]);
+      else pos.push(p[0],p[1],sec.s);
+      uv.push(i/(S-1),j/N);
+    });
+  });
+  for(let i=0;i<S-1;i++)for(let j=0;j<N;j++){
+    const a=i*N+j,b=i*N+(j+1)%N,c=(i+1)*N+(j+1)%N,d=(i+1)*N+j;
+    idx.push(a,b,c,a,c,d);
+  }
+  function capCenter(si){
+    let ca=0,cb=0;
+    for(let j=0;j<N;j++){ca+=secs[si].pts[j][0];cb+=secs[si].pts[j][1];}
+    if(ax==='x')pos.push(secs[si].s,ca/N,cb/N);
+    else if(ax==='y')pos.push(ca/N,secs[si].s,cb/N);
+    else pos.push(ca/N,cb/N,secs[si].s);
+    uv.push(0.5,0.5);
+    return S*N+(si===0?0:1);
+  }
+  const c0=capCenter(0),c1=capCenter(S-1);
+  for(let j=0;j<N;j++){
+    idx.push(c0,(j+1)%N,j);
+    idx.push(c1,(S-1)*N+j,(S-1)*N+(j+1)%N);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+function sect(w,hT,hB,nT,nB,cy=0,Np=44){
+  const pts=[];
+  for(let i=0;i<Np;i++){
+    const a=i/Np*Math.PI*2,c=Math.cos(a),s=Math.sin(a);
+    const h=c>=0?hT:hB, n=c>=0?nT:nB;
+    pts.push([cy+h*Math.sign(c)*Math.pow(Math.abs(c),2/n),
+              w*Math.sign(s)*Math.pow(Math.abs(s),2/n)]);
+  }
+  return pts;
+}
+function airfoilPts(chord,t,n=9){
+  const pts=[];
+  for(let i=0;i<=n;i++){
+    const u=i/n;
+    const y=(t*chord*0.5)*Math.pow(Math.sin(Math.PI*u),0.72)+0.012*chord*Math.sin(Math.PI*u);
+    pts.push([-chord/2+u*chord,y]);
+  }
+  for(let i=n;i>=0;i--){
+    const u=i/n;
+    const y=(t*chord*0.5)*Math.pow(Math.sin(Math.PI*u),0.72)+0.006*chord*Math.sin(Math.PI*u);
+    pts.push([-chord/2+u*chord,y]);
+  }
+  return pts;
+}
+
+const jet=new THREE.Group(); jet.position.y=0.42; scene.add(jet);
+const pickables=[];
+function mesh(geo,mat,parent,part){
+  const x=new THREE.Mesh(geo,mat);
+  x.castShadow=true;x.receiveShadow=true;
+  if(part)x.userData.part=part;
+  parent.add(x);pickables.push(x);return x;
+}
+
+/* ================= 机身(菱形感截面,分缝蒙皮) ================= */
+{
+  const S=[
+    [0.00,0.02, 0.02,0.02, 2.4,2.0, 0],
+    [0.60,0.27, 0.27,0.27, 2.5,2.0, -0.02],
+    [1.50,0.54, 0.42,0.45, 2.6,2.0, -0.02],
+    [2.60,0.80, 0.56,0.63, 2.7,2.0, -0.02],
+    [4.00,1.00, 0.66,0.81, 2.7,2.0, 0],
+    [5.30,1.22, 0.82,0.95, 2.8,2.0, 0],
+    [6.50,1.46, 0.97,1.09, 2.9,2.05,0],
+    [7.80,1.62, 1.07,1.19, 3.0,2.1, 0],
+    [9.60,1.58, 1.05,1.17, 3.0,2.1, 0],
+    [11.30,1.36,0.97,1.03, 2.9,2.05,0],
+    [12.80,1.05,0.86,0.88, 2.7,2.0, 0],
+    [13.90,0.79,0.70,0.68, 2.5,2.0, 0],
+    [14.60,0.63,0.55,0.53, 2.4,2.0, 0],
+  ];
+  const secs=S.map(([x,w,hT,hB,nT,nB,cy])=>({s:x,pts:sect(w,hT,hB,nT,nB,cy)}));
+  mesh(loft(secs,'x'),mSkin,jet,'skin');
+  // 脊背
+  const spine=mesh(new THREE.BoxGeometry(6.2,0.05,0.32),mSkinD,jet,'skin');
+  spine.position.set(10.7,1.0,0);
+}
+
+/* ================= 座舱(深金舱盖 + 弹射座椅,后铰链可开) ================= */
+const canopyPivot=new THREE.Group();
+canopyPivot.position.set(5.78,0.25,0); jet.add(canopyPivot);
+{
+  const secs=[];
+  for(let i=0;i<=16;i++){
+    const t=i/16, x=-(5.78-(2.55+t*3.23));
+    const w=(0.40*Math.sin(Math.PI*Math.min(1,t*1.06))+0.02)*1.25;
+    const h=(1.02*Math.sin(Math.PI*Math.min(1,t*1.03))+0.02);
+    const pts=[];
+    const Np=18;
+    for(let j=0;j<=Np;j++){
+      const a=-Math.PI/2+j/Np*Math.PI;
+      pts.push([0.06+h*Math.sin(a), w*Math.cos(a)]);
+    }
+    secs.push({s:x,pts});
+  }
+  const cp=mesh(loft(secs,'x'),mGlass,canopyPivot,'canopy');
+  cp.castShadow=false;
+  // 风挡前框
+  const frame=mesh(new THREE.TorusGeometry(0.36,0.045,10,32),
+    M('skin',{color:0x82888f,metalness:0.5,roughness:0.45}),canopyPivot,'canopy');
+  frame.rotation.y=Math.PI/2; frame.position.set(-3.23,0.28,0); frame.scale.set(1,1.0,1.30);
+  // 座舱 tub + 弹射座椅 + 飞行员
+  const tub=mesh(new THREE.BoxGeometry(1.9,0.28,0.72),mSeat,canopyPivot,'canopy');
+  tub.position.set(-1.85,0.10,0);
+  const seatB=mesh(new THREE.BoxGeometry(0.30,0.72,0.5),mSeat,canopyPivot,'canopy');
+  seatB.position.set(-1.55,0.48,0); seatB.rotation.z=0.28;
+  const head=mesh(new THREE.BoxGeometry(0.22,0.26,0.34),mSeat,canopyPivot,'canopy');
+  head.position.set(-1.42,0.82,0);
+  const pilotH=mesh(new THREE.SphereGeometry(0.13,12,10),mPilot,canopyPivot,'canopy');
+  pilotH.position.set(-1.15,0.80,0);
+  const pilotB=mesh(new THREE.BoxGeometry(0.34,0.5,0.44),mPilot,canopyPivot,'canopy');
+  pilotB.position.set(-1.05,0.5,0);
+}
+
+/* ================= DSI 进气道 ================= */
+[1,-1].forEach(sgn=>{
+  const g=new THREE.Group(); g.position.set(5.45,-0.18,sgn*1.28); jet.add(g);
+  const lip=mesh(new THREE.BoxGeometry(0.15,0.92,1.0),
+    M('skin',{color:0x8f959d,metalness:0.3,roughness:0.52,map:wingTex}),g,'intake');
+  lip.rotation.y=sgn*0.22; lip.rotation.x=-0.06;
+  const duct=mesh(new THREE.BoxGeometry(1.6,0.76,0.88),mDark,g,'intake');
+  duct.position.set(0.8,0,sgn*0.02);
+  const bump=mesh(new THREE.SphereGeometry(0.5,24,18),
+    M('skin',{color:0x9ba1a8,metalness:0.25,roughness:0.55,map:fusTex}),g,'intake');
+  bump.scale.set(1.0,0.9,0.6); bump.position.set(-0.3,0.02,sgn*0.32);
+  const slot=mesh(new THREE.BoxGeometry(1.35,0.98,0.10),
+    M('skin',{color:0x82888f,metalness:0.3,roughness:0.55}),g,'intake');
+  slot.position.set(0.22,0,sgn*0.64);
+});
+
+/* ================= EOTS ================= */
+{
+  const e=mesh(new THREE.CylinderGeometry(0.34,0.46,1.5,6),
+    M('skin',{color:0x9ba1a9,metalness:0.5,roughness:0.45}),jet,'eots');
+  e.rotation.z=Math.PI/2; e.position.set(2.35,-0.66,0);
+  const face=mesh(new THREE.BoxGeometry(0.06,0.44,0.6),mEots,jet,'eots');
+  face.position.set(1.63,-0.64,0); face.rotation.z=0.18;
+}
+
+/* ================= 机翼(大根弦梯形) ================= */
+[1,-1].forEach(sgn=>{
+  const secs=[];
+  const st=[
+    [0.85, 5.20, 6.15, 0.050],
+    [2.00, 4.20, 6.90, 0.046],
+    [3.20, 3.10, 7.75, 0.042],
+    [4.30, 2.30, 8.50, 0.039],
+    [5.00, 1.75, 9.05, 0.037],
+    [5.35, 1.35, 9.42, 0.035],
+  ];
+  st.forEach(([z,c,xLE,t])=>{
+    const pts=airfoilPts(c,t).map(([px,py])=>[px+xLE,py-0.12]);
+    secs.push({s:sgn*z,pts});
+  });
+  mesh(loft(secs,'z'),mSkinD,jet,'wing');
+  // 翼尖挂架 + AIM-9X(参考图 2)
+  const rail=mesh(new THREE.BoxGeometry(1.15,0.07,0.06),
+    M('skin',{color:0x9ba1a9,metalness:0.4,roughness:0.45}),jet,'missile');
+  rail.position.set(9.85,-0.10,sgn*5.38);
+  const m9=new THREE.Group(); m9.position.set(9.85,-0.24,sgn*5.38); jet.add(m9);
+  const body=mesh(new THREE.CylinderGeometry(0.062,0.062,1.9,12),mMis,m9,'missile');
+  body.rotation.z=Math.PI/2;
+  const noseC=mesh(new THREE.ConeGeometry(0.062,0.24,12),mMis,m9,'missile');
+  noseC.rotation.z=-Math.PI/2; noseC.position.x=1.05;
+  const seeker=mesh(new THREE.CylinderGeometry(0.05,0.062,0.1,12),
+    M('missile',{color:0x3a3d43,metalness:0.5,roughness:0.3}),m9,'missile');
+  seeker.rotation.z=Math.PI/2; seeker.position.x=0.62;
+  for(let f=0;f<4;f++){
+    const fin=mesh(new THREE.BoxGeometry(0.2,0.016,0.17),mMis,m9,'missile');
+    fin.position.set(-0.8,0,0); fin.rotation.x=f*Math.PI/2+Math.PI/4;
+  }
+  for(let f=0;f<4;f++){
+    const fin=mesh(new THREE.BoxGeometry(0.14,0.014,0.14),mMis,m9,'missile');
+    fin.position.set(0.72,0,0); fin.rotation.x=f*Math.PI/2+Math.PI/4;
+  }
+});
+
+/* ================= 全动平尾(后缘锯齿暗示) ================= */
+const stabGroups=[];
+[1,-1].forEach(sgn=>{
+  const g=new THREE.Group(); g.position.set(12.35,-0.22,sgn*0.68); jet.add(g);
+  const secs=[];
+  const st=[[0.72,2.75,0,0.046],[1.5,2.05,0.66,0.041],[2.25,1.5,1.18,0.036],[2.9,1.12,1.55,0.032]];
+  st.forEach(([z,c,dx,t])=>{
+    const pts=airfoilPts(c,t).map(([px,py])=>[px+dx,py]);
+    secs.push({s:sgn*z,pts});
+  });
+  const s=mesh(loft(secs,'z'),mSkinD,g,'stab');
+  s.position.x=-0.15;
+  stabGroups.push({g,sgn});
+});
+
+/* ================= 外倾双垂尾 ================= */
+const finGroups=[];
+[1,-1].forEach(sgn=>{
+  const g=new THREE.Group();
+  g.position.set(11.55,0.55,sgn*1.05);
+  g.rotation.x=sgn*22*D2R;
+  jet.add(g);
+  const secs=[];
+  const st=[[0,2.70,0,0.048],[1.35,2.00,0.92,0.043],[2.35,1.45,1.62,0.038],[2.95,1.18,2.00,0.034]];
+  st.forEach(([y,c,dx,t])=>{
+    const pts=airfoilPts(c,t).map(([px,py])=>[px+dx,sgn*0.05]);
+    secs.push({s:y,pts});
+  });
+  mesh(loft(secs,'y'),mFin,g,'fin');
+  g.children.forEach(c=>{ c.castShadow=false; });   // 垂尾不投影,避免互遮成黑面
+  const tip=mesh(new THREE.BoxGeometry(0.45,0.05,0.045),
+    M('skin',{color:0x82888f,metalness:0.4,roughness:0.5}),g,'fin');
+  tip.position.set(2.48,2.95,0); tip.castShadow=false;
+  finGroups.push({g,sgn});
+});
+
+/* ================= 内置弹舱(AIM-120 下挂可见) ================= */
+const bayDoors=[],missiles=[];
+[1,-1].forEach(sgn=>{
+  const pod=mesh(new THREE.BoxGeometry(3.1,0.26,0.86),mDark,jet,'bay');
+  pod.position.set(8.35,-0.96,sgn*0.5); pod.userData.bayInner=true;
+  for(let i=0;i<2;i++){
+    const mg=new THREE.Group();
+    mg.position.set(7.5+i*1.1,-1.26,sgn*0.5);
+    const body=mesh(new THREE.CylinderGeometry(0.085,0.085,1.75,14),mMis,mg,'missile');
+    body.rotation.z=Math.PI/2;
+    const noseC=mesh(new THREE.ConeGeometry(0.085,0.28,14),mMis,mg,'missile');
+    noseC.rotation.z=-Math.PI/2; noseC.position.x=1.0;
+    for(let f=0;f<4;f++){
+      const fin=mesh(new THREE.BoxGeometry(0.24,0.02,0.20),mMis,mg,'missile');
+      fin.position.set(-0.78,0,0); fin.rotation.x=f*Math.PI/2+Math.PI/4;
+    }
+    for(let f=0;f<4;f++){
+      const fin=mesh(new THREE.BoxGeometry(0.16,0.02,0.16),mMis,mg,'missile');
+      fin.position.set(0.82,0,0); fin.rotation.x=f*Math.PI/2+Math.PI/4;
+    }
+    jet.add(mg);
+    mg.traverse(o=>{ if(o.isMesh)o.userData.bayInner=true; });
+    missiles.push(mg);
+    const rack=mesh(new THREE.BoxGeometry(0.5,0.08,0.12),
+      M('bay',{color:0x3a3d43,metalness:0.6,roughness:0.6}),jet,'bay');
+    rack.position.set(7.5+i*1.1,-1.06,sgn*0.5);
+    rack.userData.bayInner=true;
+  }
+  const pivot=new THREE.Group();
+  pivot.position.set(8.35,-0.92,sgn*0.10); jet.add(pivot);
+  const door=mesh(new THREE.BoxGeometry(3.2,0.05,0.85),mSkinD,pivot,'bay');
+  door.position.set(0,0,sgn*0.44);
+  bayDoors.push({pivot,sgn});
+});
+
+/* ================= 锯齿喷口(棕钛外瓣 + 内瓣 + 涡轮盘) ================= */
+{
+  const ring=mesh(new THREE.CylinderGeometry(0.56,0.62,0.9,24,1,true),
+    M('nozzle',{color:0x4b4e54,metalness:0.9,roughness:0.5}),jet,'nozzle');
+  ring.rotation.z=Math.PI/2; ring.position.set(14.6,0.02,0);
+  // 外瓣 ×16(棕钛,内收)
+  const petalGeo=new THREE.BoxGeometry(0.30,0.024,0.24);
+  for(let i=0;i<16;i++){
+    const a=i/16*Math.PI*2;
+    const rm=(0.60+0.46)/2, zm=14.95;
+    const tilt=-Math.atan2(0.60-0.46,0.5);
+    const petal=mesh(petalGeo,mNoz,jet,'nozzle');
+    petal.position.set(Math.cos(a)*rm,0.02+Math.sin(a)*rm,zm);
+    petal.rotation.z=a;
+    petal.rotateOnAxis(V3(0,1,0),tilt);
+    // 锯齿尖
+    const th=mesh(new THREE.ConeGeometry(0.045,0.14,4),mNoz,jet,'nozzle');
+    th.rotation.z=-Math.PI/2;
+    th.position.set(Math.cos(a)*0.47,0.02+Math.sin(a)*0.47,15.18);
+    th.rotation.x=-a;
+  }
+  // 内瓣 ×16(浅灰)
+  for(let i=0;i<16;i++){
+    const a=i/16*Math.PI*2+Math.PI/16;
+    const p=mesh(new THREE.BoxGeometry(0.26,0.02,0.30),mNozIn,jet,'nozzle');
+    p.position.set(Math.cos(a)*0.40,0.02+Math.sin(a)*0.40,15.0);
+    p.rotation.z=a;
+    p.rotateOnAxis(V3(0,1,0),-Math.atan2(0.52-0.40,0.35));
+  }
+  // 涡轮盘
+  const turb=mesh(new THREE.CircleGeometry(0.44,32),
+    M('nozzle',{color:0xffffff,map:turbineTexture(),metalness:0.7,roughness:0.55}),jet,'nozzle');
+  turb.rotation.y=-Math.PI/2; turb.position.set(14.35,0.02,0);
+}
+
+/* ================= 加力尾焰 ================= */
+const plumeMats=[];
+{
+  function plumeTex(){
+    const c=document.createElement('canvas'); c.width=8; c.height=256;
+    const g=c.getContext('2d');
+    const grd=g.createLinearGradient(0,256,0,0);
+    grd.addColorStop(0,'rgba(255,255,255,0.9)');
+    grd.addColorStop(0.3,'rgba(255,255,255,0.5)');
+    grd.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=grd; g.fillRect(0,0,8,256);
+    return new THREE.CanvasTexture(c);
+  }
+  const tx=plumeTex();
+  [[0.34,0.10,4.5,0xffa050],[0.20,0.04,6.5,0xcfe6ff]].forEach(([r1,r2,len,col])=>{
+    const m=new THREE.MeshBasicMaterial({color:col,map:tx,transparent:true,opacity:0,
+      blending:THREE.NormalBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
+    m.clippingPlanes=clipPlanes;
+    plumeMats.push(m);
+    const p=new THREE.Mesh(new THREE.CylinderGeometry(r2,r1,len,24,1,true),m);
+    p.rotation.z=-Math.PI/2;
+    p.position.set(15.5+len/2,0.02,0);
+    jet.add(p);
+  });
+}
+
+/* ================= 起落架(带撑杆细节) ================= */
+const gearPivots=[];
+{
+  const np=new THREE.Group(); np.position.set(4.05,-0.74,0); jet.add(np);
+  const ns=mesh(new THREE.CylinderGeometry(0.06,0.08,1.35,10),mStrut,np,'gear');
+  ns.position.y=-0.62;
+  const brace=mesh(new THREE.CylinderGeometry(0.035,0.045,0.85,8),mStrut,np,'gear');
+  brace.position.set(0.3,-0.35,0); brace.rotation.z=1.05;
+  const nw=mesh(new THREE.CylinderGeometry(0.28,0.28,0.18,20),mTire,np,'gear');
+  nw.rotation.x=Math.PI/2; nw.position.y=-1.32;
+  const nh=mesh(new THREE.CylinderGeometry(0.11,0.11,0.22,10),mStrut,np,'gear');
+  nh.rotation.x=Math.PI/2; nh.position.y=-1.32;
+  const lamp=mesh(new THREE.SphereGeometry(0.05,8,6),
+    M('gear',{color:0xfff2cc,emissive:0xd8c890,emissiveIntensity:0.8}),np,'gear');
+  lamp.position.set(0.12,-0.95,0);
+  gearPivots.push({p:np,dir:-1});
+  [1,-1].forEach(sgn=>{
+    const mp=new THREE.Group(); mp.position.set(8.55,-0.9,sgn*1.22); jet.add(mp);
+    const ms=mesh(new THREE.CylinderGeometry(0.08,0.10,1.2,10),mStrut,mp,'gear');
+    ms.position.y=-0.52;
+    const br=mesh(new THREE.CylinderGeometry(0.03,0.04,0.7,8),mStrut,mp,'gear');
+    br.position.set(-0.24,-0.2,sgn*0.12); br.rotation.z=-1.0;
+    const mw=mesh(new THREE.CylinderGeometry(0.37,0.37,0.24,20),mTire,mp,'gear');
+    mw.rotation.x=Math.PI/2; mw.position.y=-1.12;
+    const mh=mesh(new THREE.CylinderGeometry(0.12,0.12,0.28,10),mStrut,mp,'gear');
+    mh.rotation.x=Math.PI/2; mh.position.y=-1.12;
+    gearPivots.push({p:mp,dir:sgn});
+  });
+}
+
+/* ================= 部件文案 ================= */
+const PARTS={
+  f35:{name:'整机概览',en:'F-35A LIGHTNING II',
+    desc:'F-35“闪电 II”单发隐身多用途战斗机。菱形机身、外倾双垂尾、DSI 进气道与内置弹舱构成低可探测外形;蒙皮上布满锯齿状导电缝线,所有舱门边缘都做成锯齿以散射雷达波。一台 F135 发动机提供 125/190 kN 推力,喷口为棕钛色锯齿花瓣。试试「武器舱」「起落架」「座舱盖」「加力」。',
+    specs:['长 15.7 m','翼展 10.7 m','最大速度 M1.6','F135 +190 kN'],tip:''},
+  radome:{name:'雷达罩',en:'RADOME (APG-81)',
+    desc:'APG-81 有源相控阵雷达的天线罩,透波复合材料,颜色比蒙皮略深。尖锥外形严格对齐隐身棱线角度。',
+    specs:['AESA 雷达','透波材料','隐身棱线'],
+    tip:'隐身机的每条缝隙都要贴导电胶带——地勤一半的维护在"封缝"。'},
+  canopy:{name:'座舱盖 · 弹射座椅',en:'CANOPY & EJECTION SEAT',
+    desc:'无框整体气泡舱盖,镀金导电膜(所以呈琥珀色)。舱内一块全景触摸屏取代全部仪表;US16E 弹射座椅可全程零高度弹射。舱盖沿后铰链向后上开启。',
+    specs:['镀 ITO 金膜','US16E 座椅','后铰链开启'],
+    tip:'F-35 的舱盖玻璃内侧镀金不是为了好看——一层只有几十纳米,却能反射雷达波。'},
+  intake:{name:'DSI 进气道',en:'DSI INTAKE',
+    desc:'唇口前的三维鼓包把附面层气流"顶"离进口,取代了传统隔道——减重 90 kg,还消除了一个强反射源。进气道在机身内部呈 S 形弯折,雷达波进去就出不来。',
+    specs:['三维鼓包','S 形管道','无隔道设计'],
+    tip:'S 形进气道是隐身的"单行道":雷达波在弯道里多次反射被吸波材料吃掉。'},
+  eots:{name:'EOTS 光电瞄准',en:'ELECTRO-OPTICAL TARGETING SYSTEM',
+    desc:'机头下的蓝宝石多面体窗口:前视红外 + 搜索跟踪 + 激光照射三合一,让 F-35 静默发现并锁定目标。',
+    specs:['合成蓝宝石','红外/激光一体'],
+    tip:'EOTS 的窗口是整块蓝宝石,既要透 8-12μm 红外,又要扛住飞行中的沙石。'},
+  wing:{name:'机翼',en:'WING',
+    desc:'35° 后掠梯形翼,大根弦设计把翼根完全融进机身;前后缘角度与机身棱线一致。翼尖挂 AIM-9X 格斗弹(训练时常用)。',
+    specs:['后掠 35°','翼展 10.7 m','翼尖 AIM-9X'],
+    tip:'翼尖挂格斗弹会破坏隐身,但训练和巡逻时暴露位置无所谓——实战才收进弹舱。'},
+  stab:{name:'全动平尾',en:'STABILATOR',
+    desc:'全动平尾兼任俯仰、滚转与偏航辅助;后缘带锯齿缺口,与整机棱线一致。',
+    specs:['全动式','锯齿后缘'],
+    tip:'F-35 大迎角飞行时平尾差动当"方向舵"用——飞控每秒修正几十次。'},
+  fin:{name:'外倾双垂尾',en:'CANTED VERTICAL TAILS',
+    desc:'外倾约 22° 的双垂尾,前后缘都是锯齿:倾斜让雷达波向无源方向散射,锯齿把剩余反射打碎成小信号。',
+    specs:['外倾 22°','全锯齿边缘','顶端天线'],
+    tip:'垂尾前缘角度和机翼、进气道唇口完全一致——整架飞机只有几个"反射方向"。'},
+  bay:{name:'内置弹舱',en:'INTERNAL WEAPONS BAY',
+    desc:'两个并列主弹舱,空空构型挂 4 枚 AIM-120;对地换 908kg JDAM×2 或小直径炸弹×8。舱门边缘同样是锯齿。',
+    specs:['2×2 AIM-120','JDAM/SDB 兼容'],
+    tip:'F-35 开舱投弹全程约 2 秒——舱门一开一关,隐身外形几乎不受影响。'},
+  missile:{name:'AIM-120 中距弹',en:'AIM-120 AMRAAM',
+    desc:'主动雷达制导中距空空导弹,射程 100+ km,发射后不管。灰色弹体顶部的深色窗口是毫米波/红外引信。',
+    specs:['射程 100+ km','M4','主动末制导'],
+    tip:'弹头深色"鼻子"不是整流罩——那是 герметичный 引信天线罩,涂了透波涂层。'},
+  nozzle:{name:'锯齿喷口',en:'SERRATED NOZZLE',
+    desc:'F135 的收敛-扩散喷口:外圈 16 片棕钛色调节片边缘带锯齿,内圈是浅色密封片;深处可见涡轮盘。锯齿让尾流与冷空气掺混更快,红外特征和噪声双降。',
+    specs:['16 外瓣+16 内瓣','棕钛涂层','涡轮盘可见'],
+    tip:'每片外瓣的锯齿角度都不同——它们按喷流频率错开,声波互相抵消。'},
+  gear:{name:'起落架',en:'LANDING GEAR',
+    desc:'前起落架带转向与着陆灯、双撑杆;主起落架承受弹射/拦阻冲击(F-35C 型加强)。收放全程约 6 秒。',
+    specs:['前三点式','前轮转向','着陆灯'],
+    tip:'F-35 的起落架舱门本身就是锯齿边缘——收上后严丝合缝拼进蒙皮。'},
+};
+
+const FOCUS={
+  f35:[[-15,7.5,-16],[7.5,0.8,0]],
+  radome:[[7,3,-7],[2,0.3,0]],
+  canopy:[[3.5,4.5,-6.5],[4.2,1.2,0]],
+  intake:[[8.5,0.5,-7],[6.2,-0.2,-1.4]],
+  eots:[[7,0.8,-4.5],[2.3,-1.1,0]],
+  wing:[[14,3.5,-9],[8.6,0.2,-3]],
+  stab:[[19,2.5,-5.5],[13,0.1,-1.6]],
+  fin:[[19,5,-4.5],[13.2,2.2,-1.9]],
+  bay:[[11,-5.5,-4],[8.3,-1.1,0]],
+  missile:[[10.5,-4,-3],[8.1,-1.26,-0.5]],
+  nozzle:[[21,1.5,0],[15,0.4,0]],
+  gear:[[8.5,-3.5,-4.5],[6.2,-1.6,-0.5]],
+};
+
+const VIEWS={
+  hero:[[-15,7.5,-16],[7.5,0.8,0]],
+  front:[[-6,2.5,1],[5,0.6,0]],
+  top:[[7.5,27,0.01],[7.5,0,0]],
+  rear:[[25,4.5,4],[14,0.6,0]],
+};
+
+/* ================= UI ================= */
+const toastEl=$('toast');let toastTimer=0;
+function toast(msg){toastEl.textContent=msg;toastEl.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2600);}
+
+let camTween=null;
+function flyTo(pos,target,dur=1.0){
+  camTween={t:0,dur,p0:camera.position.clone(),t0:controls.target.clone(),
+    p1:V3(...pos),t1:V3(...target)};
+}
+controls.addEventListener('start',()=>{camTween=null;});
+document.querySelectorAll('#grpView .btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#grpView .btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    const v=VIEWS[b.dataset.view];flyTo(v[0],v[1]);
+  });
+});
+
+const cutPlane=[new THREE.Plane(V3(0,0,-1),0)];
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll('#grpMode .btn').forEach(x=>x.classList.toggle('on',x.dataset.mode===m));
+  clipPlanes.length=0;
+  if(m==='cut')clipPlanes.push(...cutPlane);
+  if(m==='cut')toast('剖面切视:沿纵轴线切开,看舱段布局');
+}
+document.querySelectorAll('#grpMode .btn').forEach(b=>{
+  b.addEventListener('click',()=>setMode(b.dataset.mode));
+});
+
+function bindToggle(id,key,onTxt,offTxt,fn){
+  const el=$(id);
+  el.addEventListener('click',()=>{
+    state[key]=!state[key];
+    el.classList.toggle('on',state[key]);
+    if(onTxt)el.textContent=state[key]?onTxt:offTxt;
+    fn&&fn(state[key]);
+  });
+}
+bindToggle('tgBay','bay','武器舱 关','武器舱 开',on=>{
+  toast(on?'打开武器舱:4× AIM-120 就位':'关闭武器舱,恢复隐身外形');
+});
+bindToggle('tgGear','gear','起落架 收','起落架 放',on=>{
+  toast(on?'收起落架:转入飞行状态':'放起落架:准备着陆');
+});
+bindToggle('tgCanopy','canopyOpen','座舱盖 关','座舱盖 开',on=>{
+  toast(on?'座舱盖开启(后铰链):US16E 座椅可见':'座舱盖关闭');
+});
+bindToggle('tgSurf','surf');
+bindToggle('tgLabels','labels');
+bindToggle('tgRotate','rotate',null,null,on=>{controls.autoRotate=on;});
+
+function setAB(on){
+  state.ab=on;
+  const b=$('btnAB');
+  b.classList.toggle('on',on);
+  b.textContent=on?'🔥 加力 ON':'🔥 加力 OFF';
+  if(on)toast('加力接通:F135 推力 125 → 190 kN');
+  else toast('加力断开');
+}
+$('btnAB').addEventListener('click',()=>setAB(!state.ab));
+addEventListener('keydown',e=>{
+  if(e.key==='b'||e.key==='B')$('tgBay').click();
+  if(e.key==='g'||e.key==='G')$('tgGear').click();
+  if(e.key==='a'||e.key==='A')$('btnAB').click();
+  if(e.key==='l'||e.key==='L')$('tgLabels').click();
+});
+
+const infoEl=$('info');
+function buildChips(){
+  const wrap=$('infoChips');wrap.innerHTML='';
+  Object.keys(PARTS).forEach(id=>{
+    const c=document.createElement('span');
+    c.className='chip';c.dataset.part=id;
+    c.textContent=PARTS[id].name;
+    c.addEventListener('click',()=>selectPart(id,true));
+    wrap.appendChild(c);
+  });
+}
+function renderInfo(partId){
+  const P=PARTS[partId];if(!P)return;
+  $('infoName').textContent=P.name;
+  $('infoEn').textContent=P.en;
+  $('infoSpecs').innerHTML=P.specs.map(s=>`<span>${s}</span>`).join('');
+  $('infoDesc').textContent=P.desc;
+  $('infoTip').style.display=P.tip?'block':'none';
+  $('infoTip').textContent=P.tip||'';
+  document.querySelectorAll('#infoChips .chip').forEach(c=>
+    c.classList.toggle('on',c.dataset.part===partId));
+}
+function selectPart(partId,fly){
+  if(state.selected&&state.selected!==partId)setHL(state.selected,0);
+  state.selected=partId;setHL(partId,2);
+  renderInfo(partId);
+  infoEl.classList.add('show');
+  if(fly&&FOCUS[partId])flyTo(FOCUS[partId][0],FOCUS[partId][1],0.9);
+}
+function deselect(){
+  if(state.selected)setHL(state.selected,0);
+  state.selected=null;
+  infoEl.classList.remove('show');
+  document.querySelectorAll('#infoChips .chip').forEach(c=>c.classList.remove('on'));
+}
+$('btnCloseInfo').addEventListener('click',deselect);
+$('btnDeselect').addEventListener('click',deselect);
+$('btnFocus').addEventListener('click',()=>{
+  if(state.selected&&FOCUS[state.selected])flyTo(FOCUS[state.selected][0],FOCUS[state.selected][1]);
+});
+buildChips();renderInfo('f35');
+
+const ray=new THREE.Raycaster();const ptr=new THREE.Vector2();
+let ptrDown=false,ptrMoved=false;
+renderer.domElement.style.cursor='grab';
+renderer.domElement.addEventListener('pointerdown',()=>{ptrDown=true;ptrMoved=false;});
+renderer.domElement.addEventListener('pointerup',()=>{ptrDown=false;});
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(ptrDown)ptrMoved=true;
+  ptr.x=(e.clientX/innerWidth)*2-1;
+  ptr.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(ptr,camera);
+  const hit=ray.intersectObjects(pickables,false)[0];
+  const part=hit?hit.object.userData.part:null;
+  if(part!==state.hovered){
+    if(state.hovered&&state.hovered!==state.selected)setHL(state.hovered,0);
+    state.hovered=part;
+    if(part&&part!==state.selected)setHL(part,1);
+    renderer.domElement.style.cursor=part?'pointer':'grab';
+  }
+});
+renderer.domElement.addEventListener('click',()=>{
+  if(ptrMoved)return;
+  if(state.hovered)selectPart(state.hovered,false);
+  else deselect();
+});
+$('hintX').addEventListener('click',()=>$('hint').remove());
+setTimeout(()=>{const h=$('hint');if(h){h.style.opacity='0';h.style.transition='opacity 1s';setTimeout(()=>h.remove(),1000);}},14000);
+
+/* ================= 标注 ================= */
+const LABEL_DEFS=[
+  ['radome','雷达罩','radome',[0.7,0.32,0]],
+  ['canopy','座舱盖','canopy',[4.2,1.4,0]],
+  ['intake','DSI 进气道','intake',[6.0,-0.15,-1.7]],
+  ['eots','EOTS','eots',[2.3,-1.0,0]],
+  ['wing','机翼 · AIM-9X','wing',[9.4,0,-5.3]],
+  ['stab','全动平尾','stab',[13.2,-0.1,-2.4]],
+  ['fin','外倾垂尾','fin',[13.4,2.9,-2.3]],
+  ['bay','内置弹舱','bay',[8.35,-1.15,0.6]],
+  ['nozzle','锯齿喷口','nozzle',[15.2,0.5,0]],
+  ['gear','起落架','gear',[4.05,-1.9,0]],
+];
+const labelAnchors=[];
+{
+  const wrap=$('labels');
+  LABEL_DEFS.forEach(([part,text,modKey,p])=>{
+    const anchor=new THREE.Object3D();anchor.position.set(...p);
+    jet.add(anchor);
+    const el=document.createElement('div');
+    el.className='lab';el.textContent=text;
+    el.addEventListener('click',()=>selectPart(part,true));
+    wrap.appendChild(el);
+    labelAnchors.push({part,anchor,el});
+  });
+}
+const _lv=new THREE.Vector3();
+function updateLabels(){
+  labelAnchors.forEach(L=>{
+    L.anchor.getWorldPosition(_lv);_lv.project(camera);
+    const off=_lv.z>1||_lv.z<-1;
+    const vis=state.labels&&!off;
+    L.el.style.display=vis?'block':'none';
+    if(!vis)return;
+    L.el.style.left=((_lv.x*0.5+0.5)*innerWidth)+'px';
+    L.el.style.top=((-_lv.y*0.5+0.5)*innerHeight)+'px';
+    L.el.classList.toggle('on',state.selected===L.part);
+    L.el.classList.toggle('dim',!!state.selected&&state.selected!==L.part);
+  });
+}
+
+/* ================= 主循环 ================= */
+const clock=new THREE.Clock();
+let hudTimer=0,booted=false;
+
+function loop(){
+  const dt=Math.min(clock.getDelta(),0.05);
+  const t=clock.elapsedTime;
+
+  /* 画布自愈 */
+  if(renderer.domElement.width<2){
+    const w=Math.max(320,innerWidth||1500),h=Math.max(240,innerHeight||900);
+    camera.aspect=w/h;camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }
+
+  state.bayT+=((state.bay?1:0)-state.bayT)*Math.min(1,dt*2.2);
+  state.gearT+=((state.gear?1:0)-state.gearT)*Math.min(1,dt*1.4);
+  state.abT+=((state.ab?1:0)-state.abT)*Math.min(1,dt*1.8);
+  state.canT+=((state.canopyOpen?1:0)-state.canT)*Math.min(1,dt*2.0);
+
+  bayDoors.forEach(({pivot,sgn})=>{ pivot.rotation.x=sgn*state.bayT*70*D2R; });
+  /* 关舱时隐藏舱内物(舱门本体保持可见) */
+  const bayInnerVisible=state.bayT>0.04;
+  jet.traverse(o=>{
+    if(o.isMesh&&o.userData.bayInner)o.visible=bayInnerVisible;
+  });
+  gearPivots.forEach(({p,dir})=>{
+    p.rotation.z=dir*(1-state.gearT)*1.5;
+    p.visible=state.gearT>0.02;
+  });
+  canopyPivot.rotation.z=state.canT*38*D2R;
+
+  plumeMats.forEach((m,i)=>{
+    m.opacity=state.abT*(i===0?0.62:0.5)*(0.9+0.1*Math.sin(t*37+i*3));
+  });
+  mNoz.emissiveIntensity=state.abT*0.8;
+
+  const wig=state.surf?1:0;
+  const sway=Math.sin(t*1.7);
+  stabGroups.forEach(({g,sgn})=>{ g.rotation.z=lerp(g.rotation.z,sway*4*D2R*sgn*wig,0.1); });
+  finGroups.forEach(({g,sgn})=>{ g.rotation.y=lerp(g.rotation.y,sway*6*D2R*sgn*wig,0.1); });
+
+  if(camTween){
+    camTween.t+=dt/camTween.dur;
+    const k=camTween.t>=1?1:(camTween.t<0.5?4*camTween.t**3:1-Math.pow(-2*camTween.t+2,3)/2);
+    camera.position.lerpVectors(camTween.p0,camTween.p1,k);
+    controls.target.lerpVectors(camTween.t0,camTween.t1,k);
+    if(camTween.t>=1)camTween=null;
+  }
+  controls.update();
+  updateLabels();
+
+  hudTimer+=dt;
+  if(hudTimer>0.15){
+    hudTimer=0;
+    $('thrv').textContent=(125+65*state.abT).toFixed(0);
+    $('modev').textContent=state.ab?'加力':(state.gear?'地面':'空中');
+  }
+
+  renderer.render(scene,camera);
+
+  if(!booted){
+    booted=true;
+    setTimeout(()=>{$('boot').classList.add('hide');
+      setTimeout(()=>flyTo(VIEWS.hero[0],VIEWS.hero[1],1.6),80);},350);
+  }
+}
+
+/* ================= 启动 ================= */
+setMode('full');
+renderer.setAnimationLoop(loop);
+window.__step=n=>{for(let i=0;i<n;i++)loop();};
+window.__shot=()=>renderer.domElement.toDataURL('image/png');
+window.__view=(p,t)=>{camera.position.set(...p);controls.target.set(...t);camTween=null;};
+window.__set=k=>{Object.assign(state,k);};
+window.__dbg={scene,renderer,camera,controls,jet,state};
+</script>
+</body>
+</html>
