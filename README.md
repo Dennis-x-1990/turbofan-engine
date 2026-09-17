@@ -38,6 +38,14 @@ P-V 示功图与慢放观察 👇
 
 👉 分支:[`four-cylinder-engine`](https://github.com/peter-pan-x/turbofan-engine/tree/four-cylinder-engine)
 
+### 05 · F-35 战斗机 Lightning II —— `f35` 分支
+F-35A 隐身战斗机:锯齿状蒙皮分缝线、DSI 进气道、内置弹舱(4× AIM-120)、
+可开启座舱盖与弹射座椅、棕钛锯齿喷口、加力尾焰 👇
+
+![F-35 战斗机](docs/preview-f35.png)
+
+👉 分支:[`f35`](https://github.com/peter-pan-x/turbofan-engine/tree/f35)
+
 ## 如何运行
 
 每个分支 / 目录里只有一个 `index.html`:
@@ -56,3 +64,4 @@ P-V 示功图与慢放观察 👇
 | `turbojet-engine` | 涡喷 Turbojet | 加力燃烧室 · 可调喷口 · 激波菱形 |
 | `single-cylinder` | 单缸机 Single-Cylinder | 曲柄连杆运动学 · 示功图 · 慢放 |
 | `four-cylinder-engine` | 四缸机 Inline-4 | 平面曲轴 · 发火顺序 1-3-4-2 · DOHC 16V |
+| `f35` | F-35 战斗机 | 隐身机身 · 锯齿蒙皮 · 内置弹舱 · 可开座舱盖 |
