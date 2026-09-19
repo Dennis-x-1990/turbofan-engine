@@ -452,6 +452,27 @@ function airfoilPts(chord,t,n=9){
   }
   return pts;
 }
+/* 控制点样条截面:顶心→上肩→棱线→下肩→底心(左右镜像),闭合样条采样
+   刻出 F-35 的棱线与深机腹 */
+function csect(top,upY,upZ,chY,chZ,loY,loZ,bot,N=48){
+  const pts=[
+    V3(top,0,0),
+    V3(upY,upZ,0),
+    V3(chY,chZ,0),
+    V3(loY,loZ,0),
+    V3(bot,0,0),
+    V3(loY,-loZ,0),
+    V3(chY,-chZ,0),
+    V3(upY,-upZ,0),
+  ];
+  const curve=new THREE.CatmullRomCurve3(pts,true,'catmullrom',0.5);
+  const out=[];
+  for(let i=0;i<N;i++){
+    const p=curve.getPoint(i/N);
+    out.push([p.x,p.y]);
+  }
+  return out;
+}
 
 const jet=new THREE.Group(); jet.position.y=0.42; scene.add(jet);
 const pickables=[];
@@ -462,80 +483,81 @@ function mesh(geo,mat,parent,part){
   parent.add(x);pickables.push(x);return x;
 }
 
-/* ================= 机身(菱形感截面,分缝蒙皮) ================= */
+/* ================= 机身(控制点样条截面:棱线+深机腹) ================= */
 {
+  // [x, 顶心, 上肩Y,上肩Z, 棱线Y,棱线Z, 下肩Y,下肩Z, 底心]
   const S=[
-    [0.00,0.02, 0.02,0.02, 2.4,2.0, 0],
-    [0.60,0.27, 0.27,0.27, 2.5,2.0, -0.02],
-    [1.50,0.54, 0.42,0.45, 2.6,2.0, -0.02],
-    [2.60,0.80, 0.56,0.63, 2.7,2.0, -0.02],
-    [4.00,1.00, 0.66,0.81, 2.7,2.0, 0],
-    [5.30,1.22, 0.82,0.95, 2.8,2.0, 0],
-    [6.50,1.46, 0.97,1.09, 2.9,2.05,0],
-    [7.80,1.62, 1.07,1.19, 3.0,2.1, 0],
-    [9.60,1.58, 1.05,1.17, 3.0,2.1, 0],
-    [11.30,1.36,0.97,1.03, 2.9,2.05,0],
-    [12.80,1.05,0.86,0.88, 2.7,2.0, 0],
-    [13.90,0.79,0.70,0.68, 2.5,2.0, 0],
-    [14.60,0.63,0.55,0.53, 2.4,2.0, 0],
+    [0.00,0.001,0.001,0.001,0.001,0.001,0.001,0.001,0.001],
+    [0.90,0.10, 0.06, 0.20, -0.08,0.24, -0.22,0.18, -0.32],
+    [2.10,0.36, 0.14, 0.42, -0.14,0.50, -0.38,0.36, -0.58],
+    [3.40,0.56, 0.19, 0.56, -0.19,0.65, -0.48,0.48, -0.80],
+    [4.80,0.74, 0.27, 0.72, -0.29,0.92, -0.62,0.62, -1.02],
+    [6.20,0.93, 0.35, 0.90, -0.41,1.25, -0.80,0.81, -1.14],
+    [7.80,1.01, 0.39, 0.95, -0.49,1.46, -0.87,0.83, -1.16],
+    [9.60,0.98, 0.37, 0.89, -0.47,1.36, -0.83,0.79, -1.12],
+    [11.20,0.93,0.33, 0.77, -0.43,1.10, -0.75,0.71, -1.00],
+    [12.70,0.87,0.29, 0.61, -0.39,0.83, -0.63,0.57, -0.84],
+    [13.90,0.73,0.25, 0.48, -0.35,0.62, -0.53,0.46, -0.67],
+    [14.55,0.61,0.21, 0.44, -0.29,0.54, -0.45,0.40, -0.57],
   ];
-  const secs=S.map(([x,w,hT,hB,nT,nB,cy])=>({s:x,pts:sect(w,hT,hB,nT,nB,cy)}));
+  const secs=S.map(([x,top,upY,upZ,chY,chZ,loY,loZ,bot])=>
+    ({s:x,pts:csect(top,upY,upZ,chY,chZ,loY,loZ,bot)}));
   mesh(loft(secs,'x'),mSkin,jet,'skin');
-  // 脊背
-  const spine=mesh(new THREE.BoxGeometry(6.2,0.05,0.32),mSkinD,jet,'skin');
-  spine.position.set(10.7,1.0,0);
+  // 脊背(座舱后到垂尾)
+  const spine=mesh(new THREE.BoxGeometry(5.6,0.05,0.30),mSkinD,jet,'skin');
+  spine.position.set(10.4,0.99,0);
 }
 
 /* ================= 座舱(深金舱盖 + 弹射座椅,后铰链可开) ================= */
 const canopyPivot=new THREE.Group();
-canopyPivot.position.set(5.78,0.25,0); jet.add(canopyPivot);
+canopyPivot.position.set(5.62,0.42,0); jet.add(canopyPivot);
 {
   const secs=[];
   for(let i=0;i<=16;i++){
-    const t=i/16, x=-(5.78-(2.55+t*3.23));
-    const w=(0.40*Math.sin(Math.PI*Math.min(1,t*1.06))+0.02)*1.25;
-    const h=(1.02*Math.sin(Math.PI*Math.min(1,t*1.03))+0.02);
+    const t=i/16, x=-(5.62-(2.95+t*2.67));
+    const w=(0.47*Math.sin(Math.PI*Math.min(1,t*1.05))+0.02);
+    const h=(0.72*Math.sin(Math.PI*Math.min(1,t*1.02))+0.02);
     const pts=[];
     const Np=18;
     for(let j=0;j<=Np;j++){
       const a=-Math.PI/2+j/Np*Math.PI;
-      pts.push([0.06+h*Math.sin(a), w*Math.cos(a)]);
+      pts.push([0.42+h*Math.sin(a), w*Math.cos(a)]);
     }
     secs.push({s:x,pts});
   }
   const cp=mesh(loft(secs,'x'),mGlass,canopyPivot,'canopy');
   cp.castShadow=false;
   // 风挡前框
-  const frame=mesh(new THREE.TorusGeometry(0.36,0.045,10,32),
+  const frame=mesh(new THREE.TorusGeometry(0.34,0.045,10,32),
     M('skin',{color:0x82888f,metalness:0.5,roughness:0.45}),canopyPivot,'canopy');
-  frame.rotation.y=Math.PI/2; frame.position.set(-3.23,0.28,0); frame.scale.set(1,1.0,1.30);
+  frame.rotation.y=Math.PI/2; frame.position.set(-2.67,0.24,0); frame.scale.set(1,1.0,1.34);
   // 座舱 tub + 弹射座椅 + 飞行员
-  const tub=mesh(new THREE.BoxGeometry(1.9,0.28,0.72),mSeat,canopyPivot,'canopy');
-  tub.position.set(-1.85,0.10,0);
-  const seatB=mesh(new THREE.BoxGeometry(0.30,0.72,0.5),mSeat,canopyPivot,'canopy');
-  seatB.position.set(-1.55,0.48,0); seatB.rotation.z=0.28;
+  const tub=mesh(new THREE.BoxGeometry(1.8,0.28,0.74),mSeat,canopyPivot,'canopy');
+  tub.position.set(-1.45,0.06,0);
+  const seatB=mesh(new THREE.BoxGeometry(0.30,0.70,0.5),mSeat,canopyPivot,'canopy');
+  seatB.position.set(-1.22,0.42,0); seatB.rotation.z=0.28;
   const head=mesh(new THREE.BoxGeometry(0.22,0.26,0.34),mSeat,canopyPivot,'canopy');
-  head.position.set(-1.42,0.82,0);
+  head.position.set(-1.08,0.74,0);
   const pilotH=mesh(new THREE.SphereGeometry(0.13,12,10),mPilot,canopyPivot,'canopy');
-  pilotH.position.set(-1.15,0.80,0);
+  pilotH.position.set(-0.82,0.72,0);
   const pilotB=mesh(new THREE.BoxGeometry(0.34,0.5,0.44),mPilot,canopyPivot,'canopy');
-  pilotB.position.set(-1.05,0.5,0);
+  pilotB.position.set(-0.72,0.44,0);
 }
 
-/* ================= DSI 进气道 ================= */
+/* ================= DSI 进气道(棱线下方,外唇前掠) ================= */
 [1,-1].forEach(sgn=>{
-  const g=new THREE.Group(); g.position.set(5.45,-0.18,sgn*1.28); jet.add(g);
-  const lip=mesh(new THREE.BoxGeometry(0.15,0.92,1.0),
+  const g=new THREE.Group(); g.position.set(5.42,-0.55,sgn*0.80); jet.add(g);
+  const lip=mesh(new THREE.BoxGeometry(0.15,0.78,0.90),
     M('skin',{color:0x8f959d,metalness:0.3,roughness:0.52,map:wingTex}),g,'intake');
-  lip.rotation.y=sgn*0.22; lip.rotation.x=-0.06;
-  const duct=mesh(new THREE.BoxGeometry(1.6,0.76,0.88),mDark,g,'intake');
-  duct.position.set(0.8,0,sgn*0.02);
+  lip.rotation.y=sgn*0.24; lip.rotation.x=-0.08; lip.rotation.z=sgn*0.05;
+  const duct=mesh(new THREE.BoxGeometry(1.9,0.70,0.82),mDark,g,'intake');
+  duct.position.set(0.95,0.14,sgn*0.06); duct.rotation.y=-sgn*0.10;
   const bump=mesh(new THREE.SphereGeometry(0.5,24,18),
     M('skin',{color:0x9ba1a8,metalness:0.25,roughness:0.55,map:fusTex}),g,'intake');
-  bump.scale.set(1.0,0.9,0.6); bump.position.set(-0.3,0.02,sgn*0.32);
-  const slot=mesh(new THREE.BoxGeometry(1.35,0.98,0.10),
+  bump.scale.set(1.0,0.9,0.55); bump.position.set(-0.22,0.10,sgn*0.24);
+  const slot=mesh(new THREE.BoxGeometry(1.5,0.88,0.10),
     M('skin',{color:0x82888f,metalness:0.3,roughness:0.55}),g,'intake');
-  slot.position.set(0.22,0,sgn*0.64);
+  slot.position.set(0.3,0.04,sgn*0.58);
 });
 
 /* ================= EOTS ================= */
@@ -547,27 +569,27 @@ canopyPivot.position.set(5.78,0.25,0); jet.add(canopyPivot);
   face.position.set(1.63,-0.64,0); face.rotation.z=0.18;
 }
 
-/* ================= 机翼(大根弦梯形) ================= */
+/* ================= 机翼(大根弦梯形,与进气道融合) ================= */
 [1,-1].forEach(sgn=>{
   const secs=[];
   const st=[
-    [0.85, 5.20, 6.15, 0.050],
-    [2.00, 4.20, 6.90, 0.046],
-    [3.20, 3.10, 7.75, 0.042],
-    [4.30, 2.30, 8.50, 0.039],
-    [5.00, 1.75, 9.05, 0.037],
-    [5.35, 1.35, 9.42, 0.035],
+    [0.75, 5.50, 5.70, 0.052],
+    [1.90, 4.60, 6.55, 0.048],
+    [3.10, 3.45, 7.45, 0.044],
+    [4.20, 2.55, 8.30, 0.040],
+    [4.95, 1.80, 8.95, 0.037],
+    [5.35, 1.35, 9.45, 0.035],
   ];
   st.forEach(([z,c,xLE,t])=>{
-    const pts=airfoilPts(c,t).map(([px,py])=>[px+xLE,py-0.12]);
+    const pts=airfoilPts(c,t).map(([px,py])=>[px+xLE,py-0.10]);
     secs.push({s:sgn*z,pts});
   });
   mesh(loft(secs,'z'),mSkinD,jet,'wing');
-  // 翼尖挂架 + AIM-9X(参考图 2)
+  // 翼尖挂架 + AIM-9X
   const rail=mesh(new THREE.BoxGeometry(1.15,0.07,0.06),
     M('skin',{color:0x9ba1a9,metalness:0.4,roughness:0.45}),jet,'missile');
-  rail.position.set(9.85,-0.10,sgn*5.38);
-  const m9=new THREE.Group(); m9.position.set(9.85,-0.24,sgn*5.38); jet.add(m9);
+  rail.position.set(10.0,-0.20,sgn*5.38);
+  const m9=new THREE.Group(); m9.position.set(10.0,-0.34,sgn*5.38); jet.add(m9);
   const body=mesh(new THREE.CylinderGeometry(0.062,0.062,1.9,12),mMis,m9,'missile');
   body.rotation.z=Math.PI/2;
   const noseC=mesh(new THREE.ConeGeometry(0.062,0.24,12),mMis,m9,'missile');
@@ -585,12 +607,12 @@ canopyPivot.position.set(5.78,0.25,0); jet.add(canopyPivot);
   }
 });
 
-/* ================= 全动平尾(后缘锯齿暗示) ================= */
+/* ================= 全动平尾 ================= */
 const stabGroups=[];
 [1,-1].forEach(sgn=>{
-  const g=new THREE.Group(); g.position.set(12.35,-0.22,sgn*0.68); jet.add(g);
+  const g=new THREE.Group(); g.position.set(12.55,-0.42,sgn*0.62); jet.add(g);
   const secs=[];
-  const st=[[0.72,2.75,0,0.046],[1.5,2.05,0.66,0.041],[2.25,1.5,1.18,0.036],[2.9,1.12,1.55,0.032]];
+  const st=[[0.68,2.90,0,0.046],[1.5,2.15,0.70,0.041],[2.3,1.55,1.25,0.036],[2.95,1.15,1.62,0.032]];
   st.forEach(([z,c,dx,t])=>{
     const pts=airfoilPts(c,t).map(([px,py])=>[px+dx,py]);
     secs.push({s:sgn*z,pts});
@@ -604,21 +626,28 @@ const stabGroups=[];
 const finGroups=[];
 [1,-1].forEach(sgn=>{
   const g=new THREE.Group();
-  g.position.set(11.55,0.55,sgn*1.05);
+  g.position.set(11.45,0.60,sgn*0.95);
   g.rotation.x=sgn*22*D2R;
   jet.add(g);
   const secs=[];
-  const st=[[0,2.70,0,0.048],[1.35,2.00,0.92,0.043],[2.35,1.45,1.62,0.038],[2.95,1.18,2.00,0.034]];
+  const st=[[0,2.95,0,0.048],[1.35,2.15,1.05,0.043],[2.35,1.55,1.85,0.038],[3.05,1.25,2.20,0.034]];
   st.forEach(([y,c,dx,t])=>{
     const pts=airfoilPts(c,t).map(([px,py])=>[px+dx,sgn*0.05]);
     secs.push({s:y,pts});
   });
   mesh(loft(secs,'y'),mFin,g,'fin');
   g.children.forEach(c=>{ c.castShadow=false; });   // 垂尾不投影,避免互遮成黑面
-  const tip=mesh(new THREE.BoxGeometry(0.45,0.05,0.045),
+  const tip=mesh(new THREE.BoxGeometry(0.42,0.05,0.045),
     M('skin',{color:0x82888f,metalness:0.4,roughness:0.5}),g,'fin');
-  tip.position.set(2.48,2.95,0); tip.castShadow=false;
+  tip.position.set(2.62,3.08,0); tip.castShadow=false;
   finGroups.push({g,sgn});
+});
+/* 腹鳍 ×2(参考图 3 机腹细节) */
+[1,-1].forEach(sgn=>{
+  const vf=mesh(new THREE.BoxGeometry(1.15,0.30,0.03),
+    M('skin',{color:0x9ba1a8,metalness:0.3,roughness:0.55,map:wingTex}),jet,'skin');
+  vf.position.set(12.9,-1.02,sgn*0.42);
+  vf.rotation.z=-sgn*0.35; vf.rotation.x=sgn*0.5;
 });
 
 /* ================= 内置弹舱(AIM-120 下挂可见) ================= */
@@ -960,16 +989,16 @@ setTimeout(()=>{const h=$('hint');if(h){h.style.opacity='0';h.style.transition='
 
 /* ================= 标注 ================= */
 const LABEL_DEFS=[
-  ['radome','雷达罩','radome',[0.7,0.32,0]],
-  ['canopy','座舱盖','canopy',[4.2,1.4,0]],
-  ['intake','DSI 进气道','intake',[6.0,-0.15,-1.7]],
-  ['eots','EOTS','eots',[2.3,-1.0,0]],
-  ['wing','机翼 · AIM-9X','wing',[9.4,0,-5.3]],
-  ['stab','全动平尾','stab',[13.2,-0.1,-2.4]],
-  ['fin','外倾垂尾','fin',[13.4,2.9,-2.3]],
-  ['bay','内置弹舱','bay',[8.35,-1.15,0.6]],
+  ['radome','雷达罩','radome',[0.7,0.30,0]],
+  ['canopy','座舱盖','canopy',[4.1,1.62,0]],
+  ['intake','DSI 进气道','intake',[6.0,-0.62,-1.35]],
+  ['eots','EOTS','eots',[2.3,-1.12,0]],
+  ['wing','机翼 · AIM-9X','wing',[9.7,0.1,-5.3]],
+  ['stab','全动平尾','stab',[13.4,-0.35,-2.3]],
+  ['fin','外倾垂尾','fin',[13.6,3.1,-2.3]],
+  ['bay','内置弹舱','bay',[8.35,-1.25,0.6]],
   ['nozzle','锯齿喷口','nozzle',[15.2,0.5,0]],
-  ['gear','起落架','gear',[4.05,-1.9,0]],
+  ['gear','起落架','gear',[4.05,-2.1,0]],
 ];
 const labelAnchors=[];
 {
