@@ -12,7 +12,7 @@
 
 ![涡扇发动机透视+气流](docs/preview-turbofan.png)
 
-👉 分支:[`main`](https://github.com/peter-pan-x/turbofan-engine/tree/main)(本页)
+👉 分支:[`main`](https://github.com/Dennis-x-1990/turbofan-engine/tree/main)(本页)
 
 ### 02 · 涡喷发动机 Turbojet —— `turbojet-engine` 分支
 带**加力燃烧室**的单转子涡喷:8 级轴流压气机、两级涡轮、V 形火焰稳定器、
@@ -20,7 +20,7 @@
 
 ![涡喷发动机透视+气流](docs/preview-turbojet.png)
 
-👉 分支:[`turbojet-engine`](https://github.com/peter-pan-x/turbofan-engine/tree/turbojet-engine)
+👉 分支:[`turbojet-engine`](https://github.com/Dennis-x-1990/turbofan-engine/tree/turbojet-engine)
 
 ### 03 · 单缸汽油发动机 Single-Cylinder —— `single-cylinder` 分支
 四冲程 OHC 单缸机:真实曲柄连杆运动学、气门升程曲线、点火提前角、
@@ -28,7 +28,7 @@ P-V 示功图与慢放观察 👇
 
 ![单缸发动机透视+气流](docs/preview-single-cylinder.png)
 
-👉 分支:[`single-cylinder`](https://github.com/peter-pan-x/turbofan-engine/tree/single-cylinder)
+👉 分支:[`single-cylinder`](https://github.com/Dennis-x-1990/turbofan-engine/tree/single-cylinder)
 
 ### 04 · 直列四缸汽油发动机 Inline-4 —— `four-cylinder-engine` 分支
 2.0L DOHC 16V:平面曲轴 0°-180°-180°-0°,发火顺序 1-3-4-2,正时皮带 2:1,
@@ -36,7 +36,7 @@ P-V 示功图与慢放观察 👇
 
 ![四缸发动机纵剖](docs/preview-inline4.png)
 
-👉 分支:[`four-cylinder-engine`](https://github.com/peter-pan-x/turbofan-engine/tree/four-cylinder-engine)
+👉 分支:[`four-cylinder-engine`](https://github.com/Dennis-x-1990/turbofan-engine/tree/four-cylinder-engine)
 
 ### 05 · F-35 战斗机 Lightning II —— `f35` 分支
 F-35A 隐身战斗机:锯齿状蒙皮分缝线、DSI 进气道、内置弹舱(4× AIM-120)、
@@ -44,7 +44,15 @@ F-35A 隐身战斗机:锯齿状蒙皮分缝线、DSI 进气道、内置弹舱(4�
 
 ![F-35 战斗机](docs/preview-f35.png)
 
-👉 分支:[`f35`](https://github.com/peter-pan-x/turbofan-engine/tree/f35)
+👉 分支:[`f35`](https://github.com/Dennis-x-1990/turbofan-engine/tree/f35)
+
+### 06 · B-2 幽灵 隐身轰炸机 —— `b2` 分支
+诺斯罗普·格鲁曼 B-2A:飞翼布局、前缘 33° 后掠、双 W 锯齿尾缘、
+背部 S 弯进气、二维窄缝排气、内置旋转弹舱、开裂式阻力方向舵 👇
+
+![B-2 隐身轰炸机](docs/preview-b2.png)
+
+👉 分支:[`b2`](https://github.com/Dennis-x-1990/turbofan-engine/tree/b2)
 
 ## 如何运行
 
@@ -65,3 +73,4 @@ F-35A 隐身战斗机:锯齿状蒙皮分缝线、DSI 进气道、内置弹舱(4�
 | `single-cylinder` | 单缸机 Single-Cylinder | 曲柄连杆运动学 · 示功图 · 慢放 |
 | `four-cylinder-engine` | 四缸机 Inline-4 | 平面曲轴 · 发火顺序 1-3-4-2 · DOHC 16V |
 | `f35` | F-35 战斗机 | 隐身机身 · 锯齿蒙皮 · 内置弹舱 · 可开座舱盖 |
+| `b2` | B-2 隐身轰炸机 | 飞翼布局 · 双 W 尾缘 · 旋转弹舱 · 开裂方向舵 |
