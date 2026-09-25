@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B-2 幽灵 隐身轰炸机 · 交互式3D解剖 | Spirit</title>
+<style>
+  :root{
+    --ink:#191d22; --ink2:#4a515b; --line:rgba(20,26,34,.10);
+    --panel:rgba(255,255,255,.72); --accent:#ff6a2a; --blue:#2563eb;
+    --mono:"SF Mono","Cascadia Code",Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden}
+  body{font-family:"Inter","HarmonyOS Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--ink); background:#e9ebef;}
+  canvas{display:block}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(ellipse at 50% 42%,transparent 52%,rgba(28,34,44,.16) 100%);}
+  #boot{position:fixed;inset:0;z-index:100;background:linear-gradient(180deg,#f2f4f8,#d8dbe1);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    transition:opacity .7s ease;letter-spacing:.08em}
+  #boot.hide{opacity:0;pointer-events:none}
+  #boot .t{font-size:22px;font-weight:700;letter-spacing:.3em;color:#22262c}
+  #boot .s{font-size:12px;color:#69707b;letter-spacing:.2em}
+  #bootBar{width:220px;height:3px;border-radius:3px;background:rgba(0,0,0,.10);overflow:hidden}
+  #bootBar i{display:block;height:100%;width:40%;border-radius:3px;background:var(--accent);
+    animation:slide 1.1s ease-in-out infinite}
+  @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+  .panel{background:var(--panel);backdrop-filter:blur(14px) saturate(1.2);
+    border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 10px 30px rgba(25,32,44,.10),0 1px 0 rgba(255,255,255,.7) inset}
+  #hudTitle{position:fixed;top:18px;left:20px;z-index:10;padding:14px 18px 12px;max-width:340px}
+  #hudTitle .en{font-size:11px;letter-spacing:.30em;color:#8a919c;font-weight:600}
+  #hudTitle h1{font-size:19px;font-weight:800;margin:2px 0 4px}
+  #hudTitle h1 b{color:var(--accent)}
+  #hudTitle .sub{font-size:11.5px;color:var(--ink2);line-height:1.6}
+  #stats{position:fixed;top:18px;right:20px;z-index:10;display:flex;gap:8px;padding:10px 12px}
+  .gauge{min-width:72px;text-align:center}
+  .gauge .k{font-size:10px;letter-spacing:.12em;color:#8a919c;font-weight:600}
+  .gauge .v{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:2px}
+  .gauge .u{font-size:9.5px;color:#9aa1ac;margin-left:2px}
+  .gauge.pow .v{color:var(--blue)}
+  #dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10;
+    display:flex;flex-direction:column;gap:8px;padding:12px 14px;min-width:640px}
+  .dockRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+  .grp{display:flex;gap:4px;background:rgba(20,26,34,.05);border-radius:11px;padding:3px}
+  .btn{border:0;background:transparent;color:var(--ink2);font:inherit;font-size:12px;font-weight:600;
+    padding:7px 12px;border-radius:9px;cursor:pointer;letter-spacing:.04em;white-space:nowrap;transition:all .18s}
+  .btn:hover{color:var(--ink);background:rgba(255,255,255,.75)}
+  .btn.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(25,32,44,.14)}
+  .btn.tg{background:#111418;color:#fff;font-weight:700}
+  .btn.tg.on{background:var(--accent);box-shadow:0 4px 16px rgba(255,106,42,.45)}
+  .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+  .sl{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink2);font-weight:600}
+  .sl .lab{letter-spacing:.1em;white-space:nowrap}
+  .sl output{font-family:var(--mono);font-size:11px;min-width:40px;color:var(--ink)}
+  input[type=range]{-webkit-appearance:none;width:110px;height:4px;border-radius:4px;
+    background:linear-gradient(90deg,var(--accent) var(--p,40%),rgba(20,26,34,.14) var(--p,40%));outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.2);cursor:grab}
+  #info{position:fixed;top:86px;right:20px;z-index:10;width:308px;max-height:calc(100% - 200px);
+    overflow:auto;padding:16px 18px;transform:translateX(360px);opacity:0;transition:all .35s cubic-bezier(.2,.8,.2,1)}
+  #info.show{transform:none;opacity:1}
+  #info::-webkit-scrollbar{width:4px}
+  #info::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px}
+  #infoChips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+  .chip{font-size:10.5px;padding:4px 8px;border-radius:7px;background:rgba(20,26,34,.06);
+    color:var(--ink2);cursor:pointer;white-space:nowrap}
+  .chip:hover{background:#fff;color:var(--ink)}
+  .chip.on{background:var(--accent);color:#fff}
+  #infoName{font-size:18px;font-weight:800}
+  #infoEn{font-size:11px;letter-spacing:.18em;color:#8a919c;margin:2px 0 10px}
+  #infoSpecs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+  #infoSpecs span{font-size:10.5px;font-family:var(--mono);background:rgba(37,99,235,.08);
+    color:#2456b8;padding:4px 8px;border-radius:7px}
+  #infoDesc{font-size:12.5px;line-height:1.85;color:#333a44}
+  #infoTip{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,106,42,.07);
+    border:1px solid rgba(255,106,42,.18);font-size:11.5px;line-height:1.75;color:#8c4a1f}
+  #infoTip::before{content:"◈ 小知识  ";font-weight:800;color:var(--accent)}
+  #infoBtns{display:flex;gap:8px;margin-top:12px}
+  #infoBtns .btn{background:rgba(20,26,34,.06);border-radius:9px}
+  #btnCloseInfo{position:absolute;top:10px;right:12px;font-size:14px;color:#9aa1ac;padding:4px 8px}
+  #labels{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+  .lab{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;
+    font-size:11px;font-weight:600;color:#2a2f37;background:rgba(255,255,255,.82);
+    border:1px solid rgba(20,26,34,.12);padding:3px 9px;border-radius:20px;white-space:nowrap;
+    box-shadow:0 3px 10px rgba(25,32,44,.12);backdrop-filter:blur(6px)}
+  .lab:hover,.lab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .lab.dim{opacity:.35}
+  #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%) translateY(8px);z-index:20;
+    padding:9px 18px;font-size:12px;font-weight:600;color:#fff;background:rgba(24,28,34,.88);
+    border-radius:24px;opacity:0;pointer-events:none;transition:all .3s}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  #hint{position:fixed;left:20px;bottom:16px;z-index:9;padding:10px 16px;font-size:11.5px;
+    color:var(--ink2)}
+  #hint b{color:var(--ink)}
+  @media (max-width:900px){
+    #dock{min-width:0;width:calc(100% - 16px)}
+    #info{width:280px}
+    #hudTitle{max-width:250px}
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="boot">
+  <div class="t">B-2&nbsp;SPIRIT</div>
+  <div id="bootBar"><i></i></div>
+  <div class="s">正在铺设吸波蒙皮 …</div>
+</div>
+<div id="vignette"></div>
+<div id="labels"></div>
+
+<header id="hudTitle" class="panel">
+  <div class="en">B-2A · SPIRIT · INTERACTIVE 3D</div>
+  <h1>B-2 隐身轰炸机 <b>交互解剖</b></h1>
+  <div class="sub">飞翼布局 · 四发深埋 · 双 W 锯齿尾缘<br>背部 S 弯进气 / 二维窄缝喷口 / 内置旋转弹舱</div>
+</header>
+
+<div id="stats" class="panel">
+  <div class="gauge pow"><div class="k">推力</div><div class="v"><span id="thrv">0</span><span class="u">kN</span></div></div>
+  <div class="gauge"><div class="k">状态</div><div class="v" id="modev" style="font-size:14px;padding-top:3px">地面</div></div>
+</div>
+
+<aside id="info" class="panel">
+  <button id="btnCloseInfo" class="btn">✕</button>
+  <div id="infoChips"></div>
+  <div id="infoName">整机概览</div>
+  <div id="infoEn">B-2A · FLYING WING STEALTH BOMBER</div>
+  <div id="infoSpecs"></div>
+  <div id="infoDesc"></div>
+  <div id="infoTip" style="display:none"></div>
+  <div id="infoBtns">
+    <button class="btn" id="btnFocus">◎ 聚焦部件</button>
+    <button class="btn" id="btnDeselect">取消选择</button>
+  </div>
+</aside>
+
+<div id="dock" class="panel">
+  <div class="dockRow">
+    <button class="btn tg" id="tgBay">武器舱 开</button>
+    <button class="btn tg" id="tgGear">起落架 收</button>
+    <button class="btn tg" id="tgSurf">舵面演示</button>
+    <div class="sl"><span class="lab">油门</span><input type="range" id="thr" min="0" max="100" value="35"><output id="thrOut">35%</output></div>
+  </div>
+  <div class="dockRow">
+    <div class="grp" id="grpView">
+      <button class="btn on" data-view="hero">整机</button>
+      <button class="btn" data-view="front">正面</button>
+      <button class="btn" data-view="top">俯视</button>
+      <button class="btn" data-view="rear">尾部</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp" id="grpMode">
+      <button class="btn on" data-mode="full">完整</button>
+      <button class="btn" data-mode="cut">剖面切视</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <button class="btn on" id="tgLabels">标注</button>
+      <button class="btn" id="tgRotate">环绕</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="hint" class="panel"><b>拖动</b> 旋转 · <b>滚轮</b> 缩放 · <b>点击部件</b> 查看讲解 · <b>舵面演示</b> 看开裂式阻力方向舵<span class="x" id="hintX">✕</span></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<script>0;</script>
+<body>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ================= 工具 ================= */
+const $=id=>document.getElementById(id);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+const D2R=Math.PI/180;
+
+const state={ mode:'full', labels:true, rotate:false,
+  bay:false, gear:true, surf:false, thr:0.35,
+  bayT:0, gearT:1, thrT:0.35,
+  selected:null, hovered:null };
+
+/* ================= 渲染基础 ================= */
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(Math.max(320,innerWidth||1500),Math.max(240,innerHeight||900));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=0.52;
+renderer.localClippingEnabled=true;
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=makeBackgroundTexture();
+
+const camera=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,0.1,500);
+camera.position.set(-30,17,-31);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.minDistance=6; controls.maxDistance=140;
+controls.maxPolarAngle=1.52;
+controls.target.set(0,0.5,0);
+controls.autoRotateSpeed=0.8;
+
+const pmrem=new THREE.PMREMGenerator(renderer);
+scene.environment=pmrem.fromScene(new RoomEnvironment(),0.04).texture;
+
+scene.add(new THREE.HemisphereLight(0xe3e9f2,0xc8ccd2,0.7));
+const key=new THREE.DirectionalLight(0xfff3e6,1.9);
+key.position.set(16,30,-18);
+key.castShadow=true; key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-34; key.shadow.camera.right=34;
+key.shadow.camera.top=30;  key.shadow.camera.bottom=-26;
+key.shadow.camera.near=1;  key.shadow.camera.far=110;
+key.shadow.radius=6; key.shadow.bias=-0.0004;
+scene.add(key);
+const rim=new THREE.DirectionalLight(0xd8e6ff,1.15);
+rim.position.set(-28,14,26); scene.add(rim);
+const front=new THREE.DirectionalLight(0xfff0dd,0.75);
+front.position.set(-14,7,-28); scene.add(front);
+const fill=new THREE.DirectionalLight(0xffffff,0.22);
+fill.position.set(0,-10,16); scene.add(fill);
+
+/* 摄影台 */
+{
+  const cat=new THREE.Mesh(new THREE.CircleGeometry(40,80),new THREE.ShadowMaterial({opacity:0.22}));
+  cat.rotation.x=-Math.PI/2; cat.position.y=-1.925; cat.receiveShadow=true; scene.add(cat);
+  const plat=new THREE.Mesh(new THREE.CylinderGeometry(31,32,0.24,96),
+    new THREE.MeshStandardMaterial({color:0x83888f,roughness:1.0,metalness:0.04,envMapIntensity:0.3}));
+  plat.position.y=-2.055; plat.receiveShadow=true; scene.add(plat);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(31.1,0.025,8,140),
+    new THREE.MeshBasicMaterial({color:0xb9bec7}));
+  ring.rotation.x=Math.PI/2; ring.position.y=-1.915; scene.add(ring);
+}
+
+addEventListener('resize',()=>{
+  const w=Math.max(320,innerWidth||1500),h=Math.max(240,innerHeight||900);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+});
+
+function makeBackgroundTexture(){
+  const c=document.createElement('canvas'); c.width=32; c.height=512;
+  const g=c.getContext('2d');
+  const grd=g.createLinearGradient(0,0,0,512);
+  grd.addColorStop(0,'#eef0f4'); grd.addColorStop(0.55,'#e2e5ea'); grd.addColorStop(1,'#c3c7ce');
+  g.fillStyle=grd; g.fillRect(0,0,32,512);
+  const tx=new THREE.CanvasTexture(c); tx.colorSpace=THREE.SRGBColorSpace;
+  return tx;
+}
+
+/* ================= 材质体系 ================= */
+const clipPlanes=[];
+const partMats={};
+function regPart(id,m){
+  m.clippingPlanes=clipPlanes; m.clipShadows=true;
+  m.userData.baseE={hex:m.emissive?m.emissive.getHex():0,i:m.emissiveIntensity??1};
+  (partMats[id]??=[]).push(m); return m;
+}
+function M(id,params,opts={}){
+  const m=new THREE.MeshPhysicalMaterial(Object.assign({side:THREE.DoubleSide},params));
+  regPart(id,m); return m;
+}
+function setHL(id,level){
+  const mats=partMats[id]; if(!mats)return;
+  mats.forEach(m=>{
+    if(!m.emissive)return;
+    const b=m.userData.baseE;
+    if(level===0){m.emissive.setHex(b.hex);m.emissiveIntensity=b.i;}
+    else{m.emissive.setHex(0xff5a1e);m.emissiveIntensity=Math.max(b.i,0)+(level===2?0.30:0.12);}
+  });
+}
+
+/* ================= 几何工具 ================= */
+function loft(secs,ax){
+  const S=secs.length,N=secs[0].pts.length;
+  const pos=[],uv=[],idx=[];
+  secs.forEach((sec,i)=>{
+    sec.pts.forEach((p,j)=>{
+      if(ax==='x')pos.push(sec.s,p[0],p[1]);
+      else pos.push(p[0],p[1],sec.s);
+      uv.push(i/(S-1),j/N);
+    });
+  });
+  for(let i=0;i<S-1;i++)for(let j=0;j<N;j++){
+    const a=i*N+j,b=i*N+(j+1)%N,c=(i+1)*N+(j+1)%N,d=(i+1)*N+j;
+    idx.push(a,b,c,a,c,d);
+  }
+  function capCenter(si){
+    let ca=0,cb=0;
+    for(let j=0;j<N;j++){ca+=secs[si].pts[j][0];cb+=secs[si].pts[j][1];}
+    if(ax==='x')pos.push(secs[si].s,ca/N,cb/N);
+    else pos.push(ca/N,cb/N,secs[si].s);
+    uv.push(0.5,0.5);
+    return S*N+(si===0?0:1);
+  }
+  const c0=capCenter(0),c1=capCenter(S-1);
+  for(let j=0;j<N;j++){
+    idx.push(c0,(j+1)%N,j);
+    idx.push(c1,(S-1)*N+j,(S-1)*N+(j+1)%N);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+function airfoilPts(chord,tc,n=9){
+  const pts=[], t=chord*tc;
+  for(let i=0;i<=n;i++){
+    const u=i/n;
+    const y=t*0.5*Math.pow(Math.sin(Math.PI*u),0.75)-t*0.28*Math.sin(Math.PI*u);
+    pts.push([-chord/2+u*chord,y]);
+  }
+  for(let i=n;i>=0;i--){
+    const u=i/n;
+    const y=-t*0.30*Math.pow(Math.sin(Math.PI*u),0.9)-t*0.10*Math.sin(Math.PI*u);
+    pts.push([-chord/2+u*chord,y]);
+  }
+  return pts.reverse();   // 翻转绕向:使放样法线朝外(上表面+Y)
+}
+/* 蒙皮分缝线纹理 */
+function skinTexture(w=1024,h=1024){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const g=c.getContext('2d');
+  g.fillStyle='#7e838a'; g.fillRect(0,0,w,h);
+  for(let i=0;i<40;i++){
+    g.fillStyle=`rgba(${Math.random()<0.5?'52,58,66':'175,181,188'},${0.05+Math.random()*0.05})`;
+    g.fillRect(Math.random()*w,Math.random()*h,60+Math.random()*240,26+Math.random()*120);
+  }
+  g.strokeStyle='rgba(56,62,70,0.7)'; g.lineWidth=1.8;
+  for(let i=1;i<9;i++){ const y=i*h/9+(Math.random()-0.5)*12;
+    g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); }
+  for(let k=0;k<3;k++){
+    const y0=h*(0.25+Math.random()*0.5);
+    g.strokeStyle='rgba(56,62,70,0.75)'; g.lineWidth=1.9;
+    g.beginPath();
+    let x=Math.random()*w*0.3, y=y0, up=Math.random()<0.5;
+    g.moveTo(x,y);
+    for(let s=0;s<24;s++){ x+=13+Math.random()*7; y+=up?-8:8; up=!up; g.lineTo(x,y); }
+    g.stroke();
+  }
+  for(let i=0;i<30;i++){
+    const pw=40+Math.random()*90, ph=20+Math.random()*44;
+    const px=Math.random()*(w-pw), py=Math.random()*(h-ph);
+    g.fillStyle=Math.random()<0.5?'rgba(62,68,76,0.08)':'rgba(215,221,228,0.07)';
+    g.fillRect(px,py,pw,ph);
+    g.strokeStyle='rgba(84,90,98,0.55)'; g.lineWidth=1.4;
+    g.strokeRect(px,py,pw,ph);
+  }
+  const tx=new THREE.CanvasTexture(c);
+  tx.colorSpace=THREE.SRGBColorSpace; tx.anisotropy=8;
+  tx.wrapS=tx.wrapT=THREE.RepeatWrapping;
+  return tx;
+}
+function turbineTexture(){
+  const c=document.createElement('canvas'); c.width=c.height=512;
+  const g=c.getContext('2d');
+  g.fillStyle='#1e2124'; g.fillRect(0,0,512,512);
+  g.translate(256,256);
+  for(let i=0;i<38;i++){
+    g.rotate(Math.PI*2/38);
+    g.fillStyle=i%2?'#3a3f45':'#31353a';
+    g.beginPath(); g.moveTo(0,-8); g.lineTo(240,-30); g.lineTo(240,30); g.lineTo(0,8); g.fill();
+  }
+  g.fillStyle='#16181b'; g.beginPath(); g.arc(0,0,56,0,7); g.fill();
+  const tx=new THREE.CanvasTexture(c);
+  tx.colorSpace=THREE.SRGBColorSpace; tx.anisotropy=8;
+  return tx;
+}
+
+/* ================= 对象根组与模块 ================= */
+const obj=new THREE.Group(); obj.position.y=2.095; scene.add(obj);   // 地面=平台顶
+const pickables=[];
+function mesh(geo,mat,parent,part){
+  const x=new THREE.Mesh(geo,mat);
+  x.castShadow=true;x.receiveShadow=true;
+  if(part)x.userData.part=part;
+  parent.add(x);pickables.push(x);return x;
+}
+const MODS={};
+function module(key,off){
+  const g=new THREE.Group();g.userData.off=off;obj.add(g);MODS[key]=g;return g;
+}
+
+/* ================= 材质 ================= */
+const skinTex=skinTexture(1024,1024);
+const mSkin = M('skin',{color:0xb2b7bd,map:skinTex,metalness:0.08,roughness:0.58,
+  bumpMap:skinTex,bumpScale:0.35,envMapIntensity:1.1});
+const mSkinD= M('skin',{color:0x84898f,metalness:0.08,roughness:0.66,
+  bumpMap:skinTex,bumpScale:0.35,envMapIntensity:1.1});
+const mNose = M('radome',{color:0x6f747b,metalness:0.25,roughness:0.5});
+const mDark = M('bay',{color:0x26292d,metalness:0.55,roughness:0.7});
+const mIntk = M('intake',{color:0x1c1f22,metalness:0.5,roughness:0.6});
+const mNoz  = M('nozzle',{color:0x4e5157,metalness:0.85,roughness:0.45,
+  emissive:0x552200,emissiveIntensity:0});
+const mMis  = M('bomb',{color:0x565c46,metalness:0.3,roughness:0.5});
+const mTire = M('gear',{color:0x24262a,metalness:0.2,roughness:0.85});
+const mStrut= M('gear',{color:0xd6dade,metalness:0.9,roughness:0.3});
+const mGlass= M('cockpit',{color:0x3a3d2a,metalness:0.85,roughness:0.1,
+  transparent:true,opacity:0.85,envMapIntensity:1.6});
+const mSeat = M('cockpit',{color:0x2e3136,metalness:0.3,roughness:0.6});
+const mFan  = M('intake',{color:0xffffff,map:turbineTexture(),metalness:0.6,roughness:0.5});
+
+/* ================= 飞翼翼体(展向放样:前缘33°直线+尾缘W折线) ================= */
+const NOSE_X=10.5, SWEPT=0.6495;                    // 前缘 33°
+const LE=z=>NOSE_X-SWEPT*Math.abs(z);
+const TE_PTS=[[0,-10.45],[4.0,-9.3],[6.8,-8.55],[9.8,-9.95],[12.3,-7.95],
+              [15.5,-7.0],[20.5,-6.75],[25.2,-7.3],[26.2,-7.55]];
+function TE(z){
+  const az=Math.abs(z);
+  for(let i=0;i<TE_PTS.length-1;i++){
+    const [z1,x1]=TE_PTS[i],[z2,x2]=TE_PTS[i+1];
+    if(az>=z1&&az<=z2) return lerp(x1,x2,(az-z1)/(z2-z1));
+  }
+  return -7.55;
+}
+const T_PTS=[[0,2.30],[4,2.35],[8,2.20],[12,1.65],[16,1.15],[20,0.75],[24,0.42],[26.2,0.12]];
+function THK(z){
+  const az=Math.abs(z);
+  for(let i=0;i<T_PTS.length-1;i++){
+    const [z1,t1]=T_PTS[i],[z2,t2]=T_PTS[i+1];
+    if(az>=z1&&az<=z2) return lerp(t1,t2,(az-z1)/(z2-z1));
+  }
+  return 0.12;
+}
+{
+  const ZS=[-26.2,-25.2,-23,-20.5,-15.5,-12.3,-9.8,-8.2,-6.8,-4,-2,0,2,4,6.8,8.2,9.8,12.3,15.5,20.5,23,25.2,26.2];
+  const secs=ZS.map(z=>{
+    const c=LE(z)-TE(z);
+    return {s:z,pts:airfoilPts(c,THK(z)/c)};
+  });
+  mesh(loft(secs,'z'),mSkin,obj,'skin');
+}
+
+/* ================= 座舱(喙状风挡 + 双人舱) ================= */
+const cockpitPivot=new THREE.Group(); obj.add(cockpitPivot);
+{
+  const hump=mesh(new THREE.SphereGeometry(1,28,20),
+    M('skin',{color:0x8a8f96,metalness:0.15,roughness:0.6,map:skinTex}),cockpitPivot,'cockpit');
+  hump.scale.set(2.3,0.62,1.05); hump.position.set(7.3,0.86,0);
+  // 多面体风挡(阶梯状,遮住乘员防雷达)
+  const wsMat=M('cockpit',{color:0x23261c,metalness:0.7,roughness:0.15,clearcoat:0.8});
+  const f1=mesh(new THREE.BoxGeometry(0.10,0.34,1.28),wsMat,cockpitPivot,'cockpit');
+  f1.position.set(8.62,1.10,0); f1.rotation.z=-0.42;
+  const f2=mesh(new THREE.BoxGeometry(0.10,0.30,1.34),wsMat,cockpitPivot,'cockpit');
+  f2.position.set(8.82,0.94,0); f2.rotation.z=-0.16;
+  const f3=mesh(new THREE.BoxGeometry(0.10,0.26,1.38),wsMat,cockpitPivot,'cockpit');
+  f3.position.set(9.02,0.84,0); f3.rotation.z=0.10;
+  // 双座舱:座椅×2
+  [-0.42,0.42].forEach(z=>{
+    const seat=mesh(new THREE.BoxGeometry(0.42,0.55,0.44),mSeat,cockpitPivot,'cockpit');
+    seat.position.set(7.15,0.98,z);
+    const hr=mesh(new THREE.BoxGeometry(0.16,0.24,0.30),mSeat,cockpitPivot,'cockpit');
+    hr.position.set(6.94,1.18,z);
+  });
+  const deck=mesh(new THREE.BoxGeometry(2.6,0.16,1.7),mSeat,cockpitPivot,'cockpit');
+  deck.position.set(7.4,0.80,0);
+}
+
+/* ================= 背部 S 弯进气道(每侧一个,各喂两台发动机) ================= */
+const fanDisks=[];
+[1,-1].forEach(sgn=>{
+  const g=new THREE.Group(); g.position.set(0,0,sgn*2.15); obj.add(g);
+  // 进气口腔(上表面开槽)
+  const cav=mesh(new THREE.BoxGeometry(2.3,0.5,1.62),mIntk,g,'intake');
+  cav.position.set(4.1,1.02,0);
+  // 唇口
+  const lip=mesh(new THREE.BoxGeometry(0.16,0.16,1.72),
+    M('skin',{color:0x6f747b,metalness:0.3,roughness:0.5}),g,'intake');
+  lip.position.set(5.28,1.13,0);
+  // 风扇面(可见,随油门旋转)
+  const fan=mesh(new THREE.CircleGeometry(0.72,36),mFan,g,'intake');
+  fan.rotation.x=-Math.PI/2; fan.position.set(4.35,1.00,0);
+  fanDisks.push(fan);
+  // 分隔板
+  [-0.62,0.62].forEach(dz=>{
+    const w=mesh(new THREE.BoxGeometry(2.2,0.34,0.05),mIntk,g,'intake');
+    w.position.set(4.1,1.16,dz);
+  });
+});
+
+/* ================= 二维窄缝排气口(尾缘前上方,冷气掺混) ================= */
+const exhGlows=[];
+[1,-1].forEach(sgn=>{
+  const g=new THREE.Group(); g.position.set(0,0,sgn*2.15); obj.add(g);
+  const slot=mesh(new THREE.BoxGeometry(2.1,0.34,1.6),mIntk,g,'exhaust');
+  slot.position.set(-9.35,0.86,0);
+  [-0.5,0.5].forEach(dz=>{
+    const sp=mesh(new THREE.BoxGeometry(2.0,0.30,0.05),
+      M('nozzle',{color:0x54575c,metalness:0.8,roughness:0.5}),g,'exhaust');
+    sp.position.set(-9.35,0.98,dz);
+  });
+  const glowM=new THREE.MeshBasicMaterial({color:0xff8a40,transparent:true,opacity:0,
+    depthWrite:false,toneMapped:false});
+  glowM.clippingPlanes=clipPlanes;
+  exhGlows.push(glowM);
+  const glow=mesh(new THREE.BoxGeometry(2.0,0.10,1.4),glowM,g,'exhaust');
+  glow.position.set(-9.5,0.74,0); glow.castShadow=false;
+});
+
+/* ================= 尾缘升降副翼(9 块,可演示偏转) ================= */
+const elevons=[];
+function addElevon(z1,z2){
+  [1,-1].forEach(sgn=>{
+    const x1=TE(sgn*z1), x2=TE(sgn*z2);
+    const mx=(x1+x2)/2-0.32, mz=sgn*(z1+z2)/2;
+    const len=Math.abs(z2-z1)*0.96;
+    const surf=mesh(new THREE.BoxGeometry(0.5,0.06,len),
+      M('skin',{color:0x7e848c,metalness:0.12,roughness:0.6,map:skinTex}),obj,'elevon');
+    surf.position.set(mx,0.02,mz);
+    elevons.push({surf});
+  });
+}
+addElevon(4.2,6.8); addElevon(8.4,9.8);
+addElevon(12.5,15.5); addElevon(15.8,20.3); addElevon(20.6,24.4);
+
+/* ================= 翼尖开裂式阻力方向舵 ================= */
+const ruddHalves=[];
+[1,-1].forEach(sgn=>{
+  const zc=sgn*25.35, baseY=0.06;
+  const up=mesh(new THREE.BoxGeometry(1.15,0.09,1.28),
+    M('skin',{color:0x7e848c,metalness:0.15,roughness:0.6,map:skinTex}),obj,'rudd');
+  up.position.set(-6.95,baseY+0.06,zc);
+  const lo=mesh(new THREE.BoxGeometry(1.15,0.09,1.28),mSkinD,obj,'rudd');
+  lo.position.set(-6.95,baseY-0.06,zc);
+  ruddHalves.push({up,lo,sgn});
+});
+
+/* ================= 内置弹舱(前后双舱 + 旋转发射架) ================= */
+const bayDoors=[],launchers=[];
+[[6.0,2.4],[2.0,2.4]].forEach(([bx,bl],bi)=>{
+  // 舱腔
+  const cav=mesh(new THREE.BoxGeometry(bl,0.42,1.5),mDark,obj,'bay');
+  cav.position.set(bx,-0.94,0);
+  // 旋转发射架
+  const drum=new THREE.Group(); drum.position.set(bx,-1.02,0); obj.add(drum);
+  const drumC=mesh(new THREE.CylinderGeometry(0.32,0.32,bl*0.8,16),
+    M('bay',{color:0x3a3d43,metalness:0.5,roughness:0.6}),drum,'bay');
+  drumC.rotation.z=Math.PI/2;
+  for(let i=0;i<4;i++){
+    const b=new THREE.Group();
+    b.position.set(-bl*0.3+i*bl*0.2,0,0);
+    b.rotation.z=Math.PI/2;
+    const body=mesh(new THREE.CylinderGeometry(0.16,0.16,1.7,12),mMis,b,'bomb');
+    const noseC=mesh(new THREE.ConeGeometry(0.16,0.3,12),
+      M('bomb',{color:0x4a4f3a,metalness:0.3,roughness:0.5}),b,'bomb');
+    noseC.rotation.z=-Math.PI/2; noseC.position.x=0.95;
+    for(let f=0;f<4;f++){
+      const fin=mesh(new THREE.BoxGeometry(0.3,0.02,0.24),mMis,b,'bomb');
+      fin.position.set(-0.72,0,0); fin.rotation.x=f*Math.PI/2+Math.PI/4;
+    }
+    drum.add(b);
+  }
+  launchers.push(drum);
+  // 舱门 ×2(铰链在中央)
+  [1,-1].forEach(sgn=>{
+    const pivot=new THREE.Group();
+    pivot.position.set(bx,-1.14,sgn*0.06); obj.add(pivot);
+    const door=mesh(new THREE.BoxGeometry(bl,0.05,0.78),mSkinD,pivot,'bay');
+    door.position.set(0,0,sgn*0.4);
+    bayDoors.push({pivot,sgn});
+  });
+});
+
+/* ================= 起落架(前双轮+主四轮小车) ================= */
+const gearPivots=[];
+{
+  const np=new THREE.Group(); np.position.set(6.9,-1.02,0); obj.add(np);
+  const ns=mesh(new THREE.CylinderGeometry(0.10,0.12,2.4,10),mStrut,np,'gear');
+  ns.position.y=-1.2;
+  const nb=mesh(new THREE.CylinderGeometry(0.09,0.09,0.6,8),mStrut,np,'gear');
+  nb.position.set(0.4,-0.75,0); nb.rotation.z=1.1;
+  [-0.22,0.22].forEach(dz=>{
+    const nw=mesh(new THREE.CylinderGeometry(0.34,0.34,0.16,18),mTire,np,'gear');
+    nw.rotation.x=Math.PI/2; nw.position.set(0,-2.48,dz);
+  });
+  gearPivots.push({p:np,dir:1,fold:-1.6});
+  [1,-1].forEach(sgn=>{
+    const mp=new THREE.Group(); mp.position.set(-1.55,-1.02,sgn*2.3); obj.add(mp);
+    const ms=mesh(new THREE.CylinderGeometry(0.12,0.14,2.3,10),mStrut,mp,'gear');
+    ms.position.y=-1.15;
+    [-0.5,0.5].forEach(dx=>{
+      [-0.3,0.3].forEach(dz=>{
+        const mw=mesh(new THREE.CylinderGeometry(0.52,0.52,0.24,18),mTire,mp,'gear');
+        mw.rotation.x=Math.PI/2; mw.position.set(dx,-2.34,dz);
+      });
+    });
+    const mb=mesh(new THREE.BoxGeometry(1.15,0.16,0.7),
+      M('gear',{color:0xc8ccd2,metalness:0.8,roughness:0.35}),mp,'gear');
+    mb.position.set(0,-2.34,0);
+    gearPivots.push({p:mp,dir:sgn,fold:1.5});
+  });
+}
+
+/* ================= 部件文案 ================= */
+const PARTS={
+  b2:{name:'整机概览',en:'B-2A SPIRIT · FLYING WING',
+    desc:'B-2“幽灵”是现役唯一的隐身战略轰炸机:飞翼布局,没有机身与垂尾,乘员舱、四台发动机与弹舱全部埋进 21 m 长、52.4 m 翼展的翼体内。前缘 33° 后掠与双 W 锯齿尾缘把雷达波沿固定方向散射;背部 S 弯进气道与上表面窄缝排气把发动机藏得严严实实。不经空中加油航程约 11,000 km。',
+    specs:['翼展 52.4 m','长 21.0 m','空重 71.7 t','4×F118 77kN'],tip:''},
+  radome:{name:'雷达罩 · 航电',en:'RADOME & AVIONICS',
+    desc:'机头锥内是 AN/APQ-181 低截获概率雷达(LPI),Ka/Ku 双频段;雷达波只按窄扇区脉冲发射,被截获的风险极低。尖锥外形严格对齐全机棱线角度。',
+    specs:['AN/APQ-181','LPI 低截获','Ka/Ku 双频'],
+    tip:'B-2 雷达"低截获"的秘密:把能量摊开在多个频点跳变发射,接收端很难把它从噪声里认出来。'},
+  cockpit:{name:'座舱 · 双人机组',en:'TWO-CREW COCKPIT',
+    desc:'并列双座(指挥官+飞行员),舱盖是多面体阶梯风挡——倾斜的玻璃把乘员和座椅的雷达反射都"折"进机身棱线方向。机头段整体上翻是机组进出通道。',
+    specs:['并列双座','阶梯风挡','机头段上翻进出'],
+    tip:'B-2 一次任务可超过 40 小时——座舱后部有一张简易床,轮换休息。'},
+  intake:{name:'背部 S 弯进气道',en:'DORSAL S-DUCT INTAKES',
+    desc:'两个进气口开在翼体上表面,内部 S 形弯折——雷达波照进去后在中被吸波材料层层吸收,压缩机叶轮完全不可见。前方辅进气口在地面/大攻角时补气。',
+    specs:['S 弯管道','吸波导叶','上方开口防吸入'],
+    tip:'进气口里那些黑色导叶的角度是算出来的:让雷达波每弹一次就衰减一次,进得去出不来。'},
+  engine:{name:'F118 发动机 ×4',en:'4× GE F118-GE-100',
+    desc:'四台无加力涡扇深埋在座舱后的翼体内,单台推力 77 kN。发动机分两组,每组两台共用一个进气口,尾喷口汇入同一窄缝。',
+    specs:['单台 77 kN','无加力','大修间隔长'],
+    tip:'B-2 没有加力燃烧室——隐身轰炸机不需要快,红外特征越低越好。'},
+  exhaust:{name:'二维窄缝排气口',en:'2D SLOT EXHAUST',
+    desc:'排气口在尾缘前方的上表面:高温燃气先与冷空气掺混,再经过碳制导流片二维排出,把最热的尾喷口完全挡在机体上方,地面红外制导武器看不到它。',
+    specs:['上表面排气','冷气掺混','碳导流片'],
+    tip:'B-2 落地后尾喷口要等很久才能摸——排气先在机体内"闷"过一整段掺混区。'},
+  wing:{name:'飞翼翼体',en:'FLYING WING AIRFRAME',
+    desc:'全机就是一具飞翼:钛合金主梁框 + 碳纤维复合材料蒙皮,外表面是数万块锯齿边吸波砖。前缘 33° 后掠,翼型超临界,燃油就储存在翼体结构里。',
+    specs:['钛主梁+复材蒙皮','吸波砖外表面','机内油箱'],
+    tip:'B-2 每次飞行后都要在恒温机库里保养吸波表层数小时——早期 this 也是它出勤率的瓶颈。'},
+  elevon:{name:'升降副翼 ×9',en:'ELEVONS',
+    desc:'尾缘的 9 块升降副翼负责俯仰与滚转;没有垂尾,转弯时靠两侧翼尖阻力方向舵与升降副翼联合出差动阻力。',
+    specs:['9 块','俯仰+滚转','锯齿边缘'],
+    tip:'没有平尾和垂尾的飞机靠飞控计算机每秒几十次自动修正——B-2 手飞其实是在"飞计算机"。'},
+  rudd:{name:'开裂式阻力方向舵',en:'SPLIT DRAG RUDDERS',
+    desc:'翼尖后缘的上下两片像蛤壳一样张开:两侧行程相同=刹车,行程不同=偏航。它替代了垂尾的方向舵功能。',
+    specs:['上下开裂','偏航+刹车','翼尖布置'],
+    tip:'空中加油时 B-2 常开一点方向舵稳住姿态——摄影师最爱拍的"蛤壳"瞬间。'},
+  bay:{name:'内置弹舱 · 旋转发射架',en:'INTERNAL BAY & ROTARY LAUNCHER',
+    desc:'中轴前后两个弹舱,各一套旋转发射架,可挂 16 枚 B61/B83 核弹或 80 枚 500 lb JDAM(采用炸弹挂架时)。舱门锯齿边缘与蒙皮对齐。',
+    specs:['双舱串联','旋转发射架','40,000 lb'],
+    tip:'旋转架转一圈只需几秒——上一枚武器发射后,下一枚自动转到投放位。'},
+  bomb:{name:'精确制导弹药',en:'JDAM / GBU 系列',
+    desc:'GPS/惯性复合制导炸弹:普通航弹加装尾部制导组件与弹翼,滑翔距离可达数十公里,全程无需照射目标。',
+    specs:['GBU-31/38','GPS+INS','滑翔增程'],
+    tip:'JDAM 的妙处是把"笨炸弹"变聪明——成本只有空地导弹的零头,精度却能做到米级。'},
+  gear:{name:'起落架',en:'LANDING GEAR',
+    desc:'前三点式:前起双轮+主起两侧四轮小车,收放全部藏进翼体下表面,上表面保持完整光滑。主轮胎尺寸巨大,可承受 152 吨最大起飞重量。',
+    specs:['前双轮/主4轮×2','收进翼体','承受 152 t'],
+    tip:'B-2 主起落架的轮胎充氮气——高空低温下不易起火,也不给雷达添反射。'},
+  skin:{name:'吸波蒙皮',en:'RADIO-ABSORBENT SKIN',
+    desc:'外表面是数万块带锯齿边的吸波砖与导电缝线:每块砖的边缘角度都错开,让入射雷达波在砖缝间多次反射衰减。整机在雷达上只有鸟类大小。',
+    specs:['吸波砖+导电缝线','RCS ≈ 0.1 m²','恒温机库保养'],
+    tip:'B-2 不能淋雨暴晒太久——吸波表层对湿度敏感,这也是它必须住"空调房"的原因。'},
+};
+
+const FOCUS={
+  b2:[[-30,17,-31],[0,0.5,0]],
+  radome:[[16,2.5,-4],[9.2,0.6,0]],
+  cockpit:[[15,3.2,-5],[8,1.2,0]],
+  intake:[[9,6,-5],[4.2,1.0,2.1]],
+  engine:[[0,9,-6],[4.0,0.3,2.15]],
+  exhaust:[[-16,5,-4],[-9.4,0.8,2.1]],
+  wing:[[20,14,-16],[8,0,-10]],
+  elevon:[[-24,8,-16],[-6,0.3,-16]],
+  rudd:[[-20,4,-22],[-7,0.1,-25]],
+  bay:[[12,-7,-4],[5,-1.1,0]],
+  bomb:[[9,-4.5,-2.5],[6,-1.15,0]],
+  gear:[[10,-3.5,-4.5],[-1.55,-3.2,2.3]],
+  skin:[[-15,10,-16],[0,0.5,0]],
+};
+
+const VIEWS={
+  hero:[[-30,17,-31],[0,0.5,0]],
+  front:[[48,4,-2],[6,0.5,0]],
+  top:[[0.1,48,0.01],[0,0,0]],
+  rear:[[-40,7,6],[-8,0.6,0]],
+};
+
+/* ================= UI ================= */
+const toastEl=$('toast');let toastTimer=0;
+function toast(msg){toastEl.textContent=msg;toastEl.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2600);}
+
+let camTween=null;
+function flyTo(pos,target,dur=1.0){
+  camTween={t:0,dur,p0:camera.position.clone(),t0:controls.target.clone(),
+    p1:V3(...pos),t1:V3(...target)};
+}
+controls.addEventListener('start',()=>{camTween=null;});
+document.querySelectorAll('#grpView .btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#grpView .btn').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    const v=VIEWS[b.dataset.view];flyTo(v[0],v[1]);
+  });
+});
+
+const cutPlane=[new THREE.Plane(V3(0,0,-1),0)];
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll('#grpMode .btn').forEach(x=>x.classList.toggle('on',x.dataset.mode===m));
+  clipPlanes.length=0;
+  if(m==='cut')clipPlanes.push(...cutPlane);
+  if(m==='cut')toast('剖面切视:沿纵轴线切开,看乘员舱/弹舱/发动机布局');
+}
+document.querySelectorAll('#grpMode .btn').forEach(b=>{
+  b.addEventListener('click',()=>setMode(b.dataset.mode));
+});
+
+function bindToggle(id,key,onTxt,offTxt,fn){
+  const el=$(id);
+  el.addEventListener('click',()=>{
+    state[key]=!state[key];
+    el.classList.toggle('on',state[key]);
+    if(onTxt)el.textContent=state[key]?onTxt:offTxt;
+    fn&&fn(state[key]);
+  });
+}
+bindToggle('tgBay','bay','武器舱 关','武器舱 开',on=>{
+  toast(on?'打开武器舱:前后双舱旋转发射架就位':'关闭武器舱,恢复隐身外形');
+});
+bindToggle('tgGear','gear','起落架 收','起落架 放',on=>{
+  toast(on?'收起落架:转入飞行状态':'放起落架:准备着陆');
+});
+bindToggle('tgSurf','surf');
+bindToggle('tgLabels','labels');
+bindToggle('tgRotate','rotate',on=>{controls.autoRotate=on;});
+
+const slThr=$('thr');
+function paintRange(el){el.style.setProperty('--p',el.value+'%');}
+slThr.addEventListener('input',()=>{
+  state.thr=+slThr.value/100;paintRange(slThr);
+  $('thrOut').textContent=slThr.value+'%';
+});
+paintRange(slThr);
+
+const infoEl=$('info');
+function buildChips(){
+  const wrap=$('infoChips');wrap.innerHTML='';
+  Object.keys(PARTS).forEach(id=>{
+    const c=document.createElement('span');
+    c.className='chip';c.dataset.part=id;
+    c.textContent=PARTS[id].name;
+    c.addEventListener('click',()=>selectPart(id,true));
+    wrap.appendChild(c);
+  });
+}
+function renderInfo(partId){
+  const P=PARTS[partId];if(!P)return;
+  $('infoName').textContent=P.name;
+  $('infoEn').textContent=P.en;
+  $('infoSpecs').innerHTML=P.specs.map(s=>`<span>${s}</span>`).join('');
+  $('infoDesc').textContent=P.desc;
+  $('infoTip').style.display=P.tip?'block':'none';
+  $('infoTip').textContent=P.tip||'';
+  document.querySelectorAll('#infoChips .chip').forEach(c=>
+    c.classList.toggle('on',c.dataset.part===partId));
+}
+function selectPart(partId,fly){
+  if(state.selected&&state.selected!==partId)setHL(state.selected,0);
+  state.selected=partId;setHL(partId,2);
+  renderInfo(partId);
+  infoEl.classList.add('show');
+  if(fly&&FOCUS[partId])flyTo(FOCUS[partId][0],FOCUS[partId][1],0.9);
+}
+function deselect(){
+  if(state.selected)setHL(state.selected,0);
+  state.selected=null;
+  infoEl.classList.remove('show');
+  document.querySelectorAll('#infoChips .chip').forEach(c=>c.classList.remove('on'));
+}
+$('btnCloseInfo').addEventListener('click',deselect);
+$('btnDeselect').addEventListener('click',deselect);
+$('btnFocus').addEventListener('click',()=>{
+  if(state.selected&&FOCUS[state.selected])flyTo(FOCUS[state.selected][0],FOCUS[state.selected][1],0.9);
+});
+buildChips();renderInfo('b2');
+
+const ray=new THREE.Raycaster();const ptr=new THREE.Vector2();
+let ptrDown=false,ptrMoved=false;
+renderer.domElement.style.cursor='grab';
+renderer.domElement.addEventListener('pointerdown',()=>{ptrDown=true;ptrMoved=false;});
+renderer.domElement.addEventListener('pointerup',()=>{ptrDown=false;});
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(ptrDown)ptrMoved=true;
+  ptr.x=(e.clientX/innerWidth)*2-1;
+  ptr.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(ptr,camera);
+  const hit=ray.intersectObjects(pickables,false)[0];
+  const part=hit?hit.object.userData.part:null;
+  if(part!==state.hovered){
+    if(state.hovered&&state.hovered!==state.selected)setHL(state.hovered,0);
+    state.hovered=part;
+    if(part&&part!==state.selected)setHL(part,1);
+    renderer.domElement.style.cursor=part?'pointer':'grab';
+  }
+});
+renderer.domElement.addEventListener('click',()=>{
+  if(ptrMoved)return;
+  if(state.hovered)selectPart(state.hovered,false);
+  else deselect();
+});
+$('hintX').addEventListener('click',()=>$('hint').remove());
+setTimeout(()=>{const h=$('hint');if(h){h.style.opacity='0';h.style.transition='opacity 1s';setTimeout(()=>h.remove(),1000);}},14000);
+
+/* ================= 标注 ================= */
+const LABEL_DEFS=[
+  ['radome','雷达罩','radome',[9.6,0.5,0]],
+  ['cockpit','座舱 · 双人机组','cockpit',[8.3,1.5,0]],
+  ['intake','背部 S 弯进气道','intake',[4.2,1.35,2.1]],
+  ['engine','F118 ×4','engine',[1.5,0.5,2.2]],
+  ['exhaust','二维窄缝排气','exhaust',[-9.4,1.15,2.1]],
+  ['wing','飞翼翼体','wing',[9,0.3,-12]],
+  ['elevon','升降副翼','elevon',[-6.6,0.35,-17]],
+  ['rudd','开裂式阻力方向舵','rudd',[-7,0.5,-25.3]],
+  ['bay','内置弹舱','bay',[5.0,-1.3,0.7]],
+  ['gear','起落架','gear',[-1.55,-3.4,2.3]],
+];
+const labelAnchors=[];
+{
+  const wrap=$('labels');
+  LABEL_DEFS.forEach(([part,text,modKey,p])=>{
+    const anchor=new THREE.Object3D();anchor.position.set(...p);
+    obj.add(anchor);
+    const el=document.createElement('div');
+    el.className='lab';el.textContent=text;
+    el.addEventListener('click',()=>selectPart(part,true));
+    wrap.appendChild(el);
+    labelAnchors.push({part,anchor,el});
+  });
+}
+const _lv=new THREE.Vector3();
+function updateLabels(){
+  labelAnchors.forEach(L=>{
+    L.anchor.getWorldPosition(_lv);_lv.project(camera);
+    const off=_lv.z>1||_lv.z<-1;
+    const vis=state.labels&&!off;
+    L.el.style.display=vis?'block':'none';
+    if(!vis)return;
+    L.el.style.left=((_lv.x*0.5+0.5)*innerWidth)+'px';
+    L.el.style.top=((-_lv.y*0.5+0.5)*innerHeight)+'px';
+    L.el.classList.toggle('on',state.selected===L.part);
+    L.el.classList.toggle('dim',!!state.selected&&state.selected!==L.part);
+  });
+}
+
+/* ================= 主循环 ================= */
+const clock=new THREE.Clock();
+let booted=false;
+
+function loop(){
+  const dt=Math.min(clock.getDelta(),0.05);
+  const t=clock.elapsedTime;
+
+  /* 画布自愈 */
+  if(renderer.domElement.width<2){
+    const w=Math.max(320,innerWidth||1500),h=Math.max(240,innerHeight||900);
+    camera.aspect=w/h;camera.updateProjectionMatrix();
+    renderer.setSize(w,h);
+  }
+
+  state.bayT+=((state.bay?1:0)-state.bayT)*Math.min(1,dt*2.0);
+  state.gearT+=((state.gear?1:0)-state.gearT)*Math.min(1,dt*1.2);
+  state.thrT+=(state.thr-state.thrT)*Math.min(1,dt*1.5);
+  const thr=state.thrT;
+
+  /* 舱门 */
+  bayDoors.forEach(({pivot,sgn})=>{ pivot.rotation.x=sgn*state.bayT*95*D2R; });
+  launchers.forEach(d=>{ d.rotation.x=state.bayT*0; });
+  /* 起落架 */
+  gearPivots.forEach(({p,fold})=>{
+    p.rotation.z=fold*(1-state.gearT);
+    p.visible=state.gearT>0.02;
+  });
+  /* 舵面演示 */
+  const wig=state.surf?1:0;
+  elevons.forEach((e,i)=>{
+    e.surf.rotation.x=lerp(e.surf.rotation.x,
+      Math.sin(t*1.6+i*0.9)*18*D2R*wig,0.1);
+  });
+  ruddHalves.forEach(({up,lo,sgn},i)=>{
+    const open=(Math.sin(t*1.1)*0.5+0.5)*wig;
+    up.rotation.x=lerp(up.rotation.x,-open*26*D2R,0.1);
+    lo.rotation.x=lerp(lo.rotation.x,open*26*D2R,0.1);
+  });
+
+  /* 发动机:风扇旋转 + 排气辉光 + 喷口微红 */
+  fanDisks.forEach((f,i)=>{ f.rotation.y+=dt*(2+thr*40)*(i%2?1:-1); });
+  exhGlows.forEach(m=>{ m.opacity=thr*0.45; });
+  mNoz.emissiveIntensity=thr*0.5;
+
+  /* 相机补间 */
+  if(camTween){
+    camTween.t+=dt/camTween.dur;
+    const k=camTween.t>=1?1:(camTween.t<0.5?4*camTween.t**3:1-Math.pow(-2*camTween.t+2,3)/2);
+    camera.position.lerpVectors(camTween.p0,camTween.p1,k);
+    controls.target.lerpVectors(camTween.t0,camTween.t1,k);
+    if(camTween.t>=1)camTween=null;
+  }
+  controls.update();
+  updateLabels();
+
+  hudTimer+=dt;
+  if(hudTimer>0.15){
+    hudTimer=0;
+    $('thrv').textContent=(308*thr).toFixed(0);
+    $('modev').textContent=state.gear?'地面':'空中';
+  }
+
+  renderer.render(scene,camera);
+
+  if(!booted){
+    booted=true;
+    setTimeout(()=>{$('boot').classList.add('hide');
+      setTimeout(()=>flyTo(VIEWS.hero[0],VIEWS.hero[1],1.6),80);},350);
+  }
+}
+let hudTimer=0;
+
+/* ================= 启动 ================= */
+renderer.setAnimationLoop(loop);
+window.__step=n=>{for(let i=0;i<n;i++)loop();};
+window.__shot=()=>renderer.domElement.toDataURL('image/png');
+window.__view=(p,t)=>{camera.position.set(...p);controls.target.set(...t);camTween=null;};
+window.__set=k=>{Object.assign(state,k);};
+window.__dbg={scene,renderer,camera,controls,obj,state};
+</script>
+</body>
+</html>
