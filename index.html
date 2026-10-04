@@ -154,6 +154,7 @@
     <div class="sep"></div>
     <div class="grp" id="grpMode">
       <button class="btn on" data-mode="full">完整</button>
+      <button class="btn" data-mode="ghost">透视蒙皮</button>
       <button class="btn" data-mode="cut">剖面切视</button>
     </div>
     <div class="sep"></div>
@@ -325,9 +326,10 @@ function regPart(id,m){
   m.userData.baseE={hex:m.emissive?m.emissive.getHex():0,i:m.emissiveIntensity??1};
   (partMats[id]??=[]).push(m); return m;
 }
+const shellMats=[];
 function M(id,params,opts={}){
   const m=new THREE.MeshPhysicalMaterial(Object.assign({side:THREE.DoubleSide},params));
-  regPart(id,m); return m;
+  regPart(id,m); if(opts.shell)shellMats.push(m); return m;
 }
 function setHL(id,level){
   const mats=partMats[id]; if(!mats)return;
@@ -341,16 +343,16 @@ function setHL(id,level){
 
 const fuseTex=skinTexture(1024,512);
 const mFuse = M('fuselage',{color:0xffffff,map:fuseTex,metalness:0.12,roughness:0.6,
-  bumpMap:fuseTex,bumpScale:0.4,envMapIntensity:1.15});
+  bumpMap:fuseTex,bumpScale:0.4,envMapIntensity:1.15},{shell:true});
 const mFuseD= M('fuselage',{color:0x484d40,metalness:0.12,roughness:0.64,
-  bumpMap:fuseTex,bumpScale:0.4,envMapIntensity:1.1});
+  bumpMap:fuseTex,bumpScale:0.4,envMapIntensity:1.1},{shell:true});
 const mBlade= M('rotor',{color:0x5c6250,metalness:0.15,roughness:0.5});
 const mBladeTip=M('rotor',{color:0xe8eaec,metalness:0.2,roughness:0.4});
 const mHub  = M('rotor',{color:0x555a52,metalness:0.6,roughness:0.45});
 const mOil  = M('rotor',{color:0x3a3e36,metalness:0.5,roughness:0.5});
 const mGlass= M('cockpit',{color:0x2a3128,metalness:0.85,roughness:0.1,
   transparent:true,opacity:0.72,clearcoat:1.0,clearcoatRoughness:0.06,envMapIntensity:1.6});
-const mEng  = M('engine',{color:0x50544a,metalness:0.5,roughness:0.5});
+const mEng  = M('engine',{color:0x50544a,metalness:0.5,roughness:0.5},{shell:true});
 const mDark = M('engine',{color:0x1e2124,metalness:0.4,roughness:0.65});
 const mExh  = M('engine',{color:0x443f38,metalness:0.75,roughness:0.5,
   emissive:0x442200,emissiveIntensity:0});
@@ -408,6 +410,7 @@ function rsect(w,yb,yt,nT=2.2,nB=3.0,N=44){
   }
   return pts;
 }
+function cylZ(r,len,seg=48,open=false){ const g=new THREE.CylinderGeometry(r,r,len,seg,1,open); g.rotateZ(-Math.PI/2); return g; }
 function airfoilPts(chord,tc,n=9){
   const pts=[], t=chord*tc;
   for(let i=0;i<=n;i++){
@@ -478,8 +481,15 @@ function mesh(geo,mat,parent,part){
 /* ================= 滑动舱门(两侧) ================= */
 const doorPanels=[];
 [1,-1].forEach(sgn=>{
-  const opening=mesh(new THREE.BoxGeometry(1.72,1.18,0.03),mDark,obj,'door');
-  opening.position.set(2.1,1.72,sgn*1.165);
+  const fw=0.07;
+  [[0,1.145-0.5*fw,1.74,fw],[0,-1.145+0.5*fw,1.74,fw]].forEach(([ox,oy,ww,t])=>{
+    const bar=mesh(new THREE.BoxGeometry(ww,t,0.03),mDark,obj,'door');
+    bar.position.set(2.1,1.72+oy,sgn*1.165);
+  });
+  [[1.145,-0.545],[1.145,0.545]].forEach(([oy,ox])=>{
+    const bar=mesh(new THREE.BoxGeometry(fw,1.18,0.03),mDark,obj,'door');
+    bar.position.set(2.1+ox,1.72,sgn*1.165);
+  });
   const d=mesh(new THREE.BoxGeometry(1.7,1.15,0.05),mFuseD,obj,'door');
   d.position.set(2.1,1.72,sgn*1.20);
   const dw=mesh(new THREE.BoxGeometry(0.5,0.36,0.07),mGlass,obj,'door');
@@ -875,6 +885,125 @@ const flapGroups=[];
 }
 
 
+
+/* ================= 内部结构包(剖面/透视可见) ================= */
+{
+  // --- 主减速器 MRGB(旋翼轴下方的大齿轮箱) ---
+  const mrgb=new THREE.Group(); mrgb.position.set(3.15,0,0); obj.add(mrgb);
+  const mainCase=mesh(new THREE.CylinderGeometry(0.34,0.42,0.62,20),mHub,mrgb,'mrgb');
+  mainCase.position.y=2.10;
+  const caseTop=mesh(new THREE.CylinderGeometry(0.24,0.30,0.18,20),mHub,mrgb,'mrgb');
+  caseTop.position.y=2.42;
+  // 双发输入模块(斜向伸向两侧发动机)
+  [1,-1].forEach(sgn=>{
+    const dir=V3(0.14,-0.16,sgn*0.62).normalize();
+    const inp=mesh(new THREE.CylinderGeometry(0.13,0.17,0.66,12),mHub,mrgb,'mrgb');
+    inp.quaternion.setFromUnitVectors(V3(0,1,0),V3(0.14,-0.16,sgn*0.62).normalize());
+    inp.position.set(3.20,2.28,sgn*0.32);
+  });
+  // 液压泵组件 ×3(挂在 -X 侧)
+  for(let i=0;i<3;i++){
+    const y=2.30-i*0.22;
+    const hp=mesh(new THREE.CylinderGeometry(0.085,0.085,0.16,10),mDark,mrgb,'mrgb');
+    hp.rotation.z=Math.PI/2;
+    hp.position.set(2.78,y,0);
+  }
+
+  // --- 发动机内芯 ×2(T700 简化:压气机锥+燃烧室+涡轮) ---
+  [1,-1].forEach(sgn=>{
+    const eg=new THREE.Group(); eg.position.set(0,2.55,sgn*1.02); obj.add(eg);
+    // 压气机锥(5 级盘)
+    for(let i=0;i<5;i++){
+      const d=mesh(new THREE.CylinderGeometry(0.28-0.017*i,0.26-0.017*i,0.055,16),
+        M('engine',{color:0x7b8188,metalness:0.85,roughness:0.35}),eg,'engine');
+      d.position.x=3.10-i*0.14;
+    }
+    const snout=mesh(new THREE.ConeGeometry(0.10,0.22,12),
+      M('engine',{color:0x9aa0a8,metalness:0.85,roughness:0.3}),eg,'engine');
+    snout.rotation.z=-Math.PI/2; snout.position.x=3.44;
+    // 环形燃烧室(内焰)
+    const cmb=mesh(cylZ(0.21,0.34,18,true),
+      M('engine',{color:0x3a3226,metalness:0.6,roughness:0.5,
+        emissive:0xff5a14,emissiveIntensity:0}),eg,'engine');
+    cmb.position.x=2.62;
+    // 涡轮 ×2
+    for(let i=0;i<2;i++){
+      const td=mesh(new THREE.CylinderGeometry(0.22,0.20,0.05,16),
+        M('engine',{color:0x6d5a45,metalness:0.85,roughness:0.4}),eg,'engine');
+      td.position.x=2.36-i*0.10;
+    }
+    // 输出轴(伸向主减速器输入模块)
+    const shaft=mesh(new THREE.CylinderGeometry(0.05,0.05,0.72,10),
+      M('engine',{color:0x8d939b,metalness:1.0,roughness:0.35}),eg,'engine');
+    shaft.quaternion.setFromUnitVectors(V3(0,1,0),V3(-0.18,-0.42,-sgn*0.72).normalize());
+    shaft.position.set(2.98,2.38,sgn*0.72);
+  });
+
+  // --- 内部尾传动轴(轴罩之内)+ 轴承座 ---
+  const ishaft=mesh(new THREE.CylinderGeometry(0.045,0.045,5.4,10),
+    M('engine',{color:0x9aa0a8,metalness:1.0,roughness:0.3}),obj,'engine');
+  ishaft.rotation.z=Math.PI/2;
+  ishaft.position.set(-2.9,2.06,0);
+  [[-0.9,-2.2],[-2.2,-3.6]].forEach(([x1,x2])=>{
+    const br=mesh(new THREE.CylinderGeometry(0.075,0.075,0.10,10),mDark,obj,'engine');
+    br.rotation.z=Math.PI/2;
+    br.position.set((x1+x2)/2,2.06,0);
+  });
+
+  // --- 尾减速器(垂尾根部,90° 换向) ---
+  const tgear=mesh(new THREE.CylinderGeometry(0.15,0.19,0.55,14),mHub,obj,'tailgear');
+  tgear.position.set(-6.85,2.25,0); tgear.rotation.x=-18*D2R;
+
+  // --- 机内燃油箱 ×2(货舱地板下两侧) ---
+  [1,-1].forEach(sgn=>{
+    const fc=mesh(new THREE.CapsuleGeometry(0.27,0.95,8,14),
+      M('fuelcell',{color:0x43474b,metalness:0.2,roughness:0.7}),obj,'fuelcell');
+    fc.rotation.z=Math.PI/2;
+    fc.position.set(0.55,1.42,sgn*0.56);
+    const strap=mesh(new THREE.BoxGeometry(0.08,0.60,0.60),mDark,obj,'fuelcell');
+    strap.position.set(0.55,1.42,sgn*0.56);
+  });
+
+  // --- 航电设备架(驾驶舱后) ---
+  const rack=mesh(new THREE.BoxGeometry(0.42,0.72,1.5),mDark,obj,'avionics');
+  rack.position.set(4.85,1.66,0);
+  [[-0.5,-0.22],[-0.5,0.22],[0.1,-0.22],[0.1,0.22],[0.42,0]].forEach(([dy,dz],i)=>{
+    const bx=mesh(new THREE.BoxGeometry(0.30,0.26,0.30),
+      M('avionics',{color:0x2f3338,metalness:0.5,roughness:0.45}),obj,'avionics');
+    bx.position.set(4.85+dy-0.1,1.50+ (i%2)*0.36, dz);
+  });
+
+  // --- 座舱仪表台 + MFD ×2 + 中央控制台 + 驾驶杆 ---
+  const panel=mesh(new THREE.BoxGeometry(0.30,0.34,1.60),
+    M('cabin',{color:0x26292d,metalness:0.3,roughness:0.6}),obj,'cockpit');
+  panel.position.set(6.05,1.98,0); panel.rotation.z=-0.35;
+  [[-0.40],[0.40]].forEach(([dz])=>{
+    const mfd=mesh(new THREE.PlaneGeometry(0.34,0.26),
+      M('cabin',{color:0x0d1a12,emissive:0x1a3a24,emissiveIntensity:0.9}),obj,'cockpit');
+    mfd.position.set(5.92,2.00,dz);
+    mfd.rotation.y=-Math.PI/2; mfd.rotation.z=-0.35;
+  });
+  const console_=mesh(new THREE.BoxGeometry(1.0,0.30,0.34),mSeat,obj,'cockpit');
+  console_.position.set(5.35,1.30,0);
+  [[0.55,0.30],[-0.55,-0.30]].forEach(([z,cx])=>{
+    const cyc=mesh(new THREE.CylinderGeometry(0.016,0.02,0.42,8),mDark,obj,'cockpit');
+    cyc.position.set(cx,1.42,z); cyc.rotation.x=0.18;
+    const grip=mesh(new THREE.BoxGeometry(0.05,0.14,0.05),mDark,obj,'cockpit');
+    grip.position.set(cx-0.04,1.64,z);
+  });
+
+  // --- 机身隔框 ×4(剖面里可见的环形框) ---
+  [[5.0,0.99,1.00,2.42],[2.8,1.15,0.97,2.45],[0.6,1.08,1.02,2.32],[-1.8,0.86,1.36,2.05]].forEach(([x,w,yb,yt])=>{
+    const cy=(yb+yt)/2, ry=(yt-yb)/2;
+    const ring=mesh(new THREE.TorusGeometry(ry,0.035,8,40),
+      M('fuselage',{color:0x3e4236,metalness:0.3,roughness:0.6}),obj,'fuselage');
+    ring.rotation.y=Math.PI/2;
+    ring.scale.set(1,1,w/ry);
+    ring.position.set(x,cy,0);
+  });
+}
+
+
 /* ================= 部件文案 ================= */
 const PARTS={
   uh60:{name:'整机概览',en:'UH-60L BLACK HAWK',
@@ -920,6 +1049,18 @@ const PARTS={
     desc:'大面积全动平尾随速度自动调整安角:悬停时下反避开了旋翼下洗,前飞时上反提供抬头力矩,由飞控自动联动。',
     specs:['全动式','随速自动调整','下反悬停构型'],
     tip:'悬停时平尾“塌”下去是为了躲开旋翼吹下来的气流——前飞时它会自己抬起来。'},
+  mrgb:{name:'主减速器',en:'MAIN GEARBOX (MRGB)',
+    desc:'并车减速器:把两台 T700 的功率合并后经传动轴带动旋翼,内部三级齿轮减速,箱体上挂着 3 个液压泵模块(液压失效三余度的基础)。',
+    specs:['并车 + 三级减速','3 液压泵','干运转 30 min'],
+    tip:'主减速器是黑鹰最"硬"的部件——完全失去润滑后还能干转 30 分钟,足够退出战区。'},
+  fuelcell:{name:'机内燃油箱 ×2',en:'INTERNAL FUEL CELLS',
+    desc:'两个抗弹燃油箱布置在货舱地板下的两侧,容量共约 1360 L;惰性气体充填系统降低被击中起火的概率。',
+    specs:['共 ~1360 L','抗弹设计','惰性气体充填'],
+    tip:'黑鹰的油箱藏在你看不见的地板下——ESSS 外挂副油箱只是为了远程转场。'},
+  tailgear:{name:'尾减速器',en:'TAIL GEARBOX',
+    desc:'垂尾根部的 90° 换向齿轮箱:把沿尾梁传来的水平旋转转 90° 向上,再经倾斜 20° 的尾桨轴驱动尾桨。',
+    specs:['90° 换向','中间减速器','轴倾斜 20°'],
+    tip:'从主减速器到尾桨,动力要经过 5 米长的传动轴和两级换向——每一节都监听振动。'},
   gear:{name:'起落架',en:'LANDING GEAR',
     desc:'不可收放的后三点式:主起落架大跨距后掠安置,能量吸收支柱可承受 3.5 m/s 的粗暴着陆;尾橇保护尾梁并可在雪地/沼泽加装滑撬。',
     specs:['不可收放','主轮距 2.79 m','坠撞吸能'],
@@ -944,6 +1085,9 @@ const FOCUS={
   stab:[[9,4.5,-8],[-5.6,2.2,0]],
   gear:[[6,-1,-6],[1.1,0.6,1.4]],
   skin:[[18,6,-12],[1.5,2.4,0]],
+  mrgb:[[7,5.5,-3],[3.15,2.3,0]],
+  fuelcell:[[6,-2,-6],[0.55,1.42,-0.56]],
+  tailgear:[[10,4,-7],[-6.85,2.3,0]],
 };
 
 const VIEWS={
@@ -978,7 +1122,13 @@ function setMode(m){
   document.querySelectorAll('#grpMode .btn').forEach(x=>x.classList.toggle('on',x.dataset.mode===m));
   clipPlanes.length=0;
   if(m==='cut')clipPlanes.push(...cutPlane);
+  shellMats.forEach(mm=>{
+    const ghost=(m==='ghost');
+    mm.transparent=ghost; mm.opacity=ghost?0.15:1; mm.depthWrite=!ghost;
+    mm.needsUpdate=true;
+  });
   if(m==='cut')toast('剖面切视:沿纵轴线切开,看驾驶舱/货舱/传动布局');
+  if(m==='ghost')toast('透视蒙皮:减速器/发动机内芯/燃油箱/传动轴一览无余');
 }
 document.querySelectorAll('#grpMode .btn').forEach(b=>{
   b.addEventListener('click',()=>setMode(b.dataset.mode));
@@ -1093,6 +1243,9 @@ const LABEL_DEFS=[
   ['stab','全动平尾','stab',[-5.6,2.45,-2.0]],
   ['gear','起落架','gear',[1.1,0.5,1.5]],
   ['fuselage','机体','fuselage',[-3.2,1.7,0.6]],
+  ['mrgb','主减速器','mrgb',[3.15,2.5,0]],
+  ['fuelcell','机内燃油箱','fuelcell',[0.55,1.42,-0.56]],
+  ['tailgear','尾减速器','tailgear',[-6.85,2.25,0]],
 ];
 const labelAnchors=[];
 {
@@ -1165,6 +1318,12 @@ function loop(){
   /* 排气辉光 */
   exhGlows.forEach(m=>{ m.opacity=0.5*wn; });
   mExh.emissiveIntensity=0.6*wn;
+  /* 发动机内芯燃烧室发光 */
+  obj.traverse(o=>{
+    if(o.isMesh&&o.material&&o.material.emissive&&o.material.emissive.getHex()===0xff5a14){
+      o.material.emissiveIntensity=0.9*wn;
+    }
+  });
 
   /* 相机补间 */
   if(camTween){
