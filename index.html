@@ -344,7 +344,7 @@ const mFuse = M('fuselage',{color:0xffffff,map:fuseTex,metalness:0.12,roughness:
   bumpMap:fuseTex,bumpScale:0.4,envMapIntensity:1.15});
 const mFuseD= M('fuselage',{color:0x484d40,metalness:0.12,roughness:0.64,
   bumpMap:fuseTex,bumpScale:0.4,envMapIntensity:1.1});
-const mBlade= M('rotor',{color:0x2c2f28,metalness:0.25,roughness:0.5});
+const mBlade= M('rotor',{color:0x5c6250,metalness:0.15,roughness:0.5});
 const mBladeTip=M('rotor',{color:0xe8eaec,metalness:0.2,roughness:0.4});
 const mHub  = M('rotor',{color:0x555a52,metalness:0.6,roughness:0.45});
 const mOil  = M('rotor',{color:0x3a3e36,metalness:0.5,roughness:0.5});
@@ -423,6 +423,8 @@ function airfoilPts(chord,tc,n=9){
   return pts;
 }
 
+function torusX(r,t){ const g=new THREE.TorusGeometry(r,t,10,64); g.rotateY(Math.PI/2); return g; }
+function torusZ2(r,t){ return torusX(r,t); }
 /* ================= 对象根组 ================= */
 const obj=new THREE.Group(); scene.add(obj);   // y=0 即地面
 const pickables=[];
@@ -531,8 +533,6 @@ const exhGlows=[];
   const tank=mesh(new THREE.CapsuleGeometry(0.31,1.3,8,16),mTank,obj,'esss');
   tank.rotation.z=Math.PI/2;
   tank.position.set(2.9,2.05,sgn*2.02);
-  const noseC=mesh(new THREE.SphereGeometry(0.31,16,12),mTank,obj,'esss');
-  noseC.position.set(3.9,2.05,sgn*2.02);
   // 支柱
   const str=mesh(new THREE.BoxGeometry(0.5,0.12,0.7),mFuseD,obj,'esss');
   str.position.set(2.62,2.0,sgn*1.5);
@@ -668,7 +668,7 @@ const flapGroups=[];
       const twist=lerp(13,3,t)*D2R;
       const sweep=t>0.72?(t-0.72)/0.28*0.55:0;
       const sweepZ=-sweep;
-      const th=lerp(0.055,0.032,t);
+      const th=lerp(0.085,0.05,t);
       const af=airfoilPts(c,th/c,7).map(([u,v])=>{
         const u2=u*Math.cos(twist)-v*Math.sin(twist), v2=u*Math.sin(twist)+v*Math.cos(twist);
         return [v2, u2];
@@ -702,12 +702,178 @@ const flapGroups=[];
   }
   // 桨叶模糊盘
   const discTex=blurDiscTexture();
-  const discMat=new THREE.MeshBasicMaterial({color:0x6a6e62,map:discTex,transparent:true,
+  const discMat=new THREE.MeshBasicMaterial({color:0x4c5046,map:discTex,transparent:true,
     opacity:0,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
   const disc=mesh(new THREE.CircleGeometry(8.18,64),discMat,rotorRoot,'rotor');
   disc.rotation.x=-Math.PI/2; disc.position.y=0.86; disc.castShadow=false;
   rotorRoot.userData.disc=disc;
 }
+
+
+/* ================= 细节增强包 ================= */
+{
+  // --- 1. 主减速器舱(doghouse,黑鹰标志性鼓包) ---
+  const dgSecs=[
+    {s:4.15,pts:rsect(0.52,2.30,2.52,2.2,2.8,32)},
+    {s:3.55,pts:rsect(0.86,2.30,2.86,2.2,2.8,32)},
+    {s:2.85,pts:rsect(0.92,2.30,2.90,2.2,2.8,32)},
+    {s:2.20,pts:rsect(0.66,2.30,2.70,2.2,2.8,32)},
+  ];
+  mesh(loft(dgSecs,'x'),mFuseD,obj,'fuselage');
+  // 减速器舱检修口盖(圆盘)
+  [[3.6,0.30],[3.0,-0.28],[2.5,0.22]].forEach(([x,z])=>{
+    const cv=mesh(new THREE.CylinderGeometry(0.10,0.10,0.02,18),mFuseD,obj,'fuselage');
+    cv.rotation.x=Math.PI/2; cv.position.set(x,2.66,z);
+  });
+
+  // --- 2. 尾传动轴罩(沿尾梁上表面)+ 吊架凸台 ---
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.085,5.6,16,1,true),
+    M('fuselage',{color:0x565b4a,metalness:0.3,roughness:0.55,map:fuseTex}));
+  shaft.rotation.z=Math.PI/2;
+  shaft.position.set(-3.2,2.06,0);
+  shaft.castShadow=true; obj.add(shaft); pickables.push(shaft); shaft.userData.part='fuselage';
+  [-0.6,-1.9,-3.2,-4.5].forEach(x=>{
+    const hg=mesh(new THREE.BoxGeometry(0.16,0.14,0.22),mFuseD,obj,'fuselage');
+    hg.position.set(x,2.02,0);
+  });
+
+  // --- 3. 尾减速器舱(垂尾根部整流罩) ---
+  const tgb=mesh(new THREE.BoxGeometry(1.35,0.42,0.44),mFuseD,obj,'fuselage');
+  tgb.position.set(-6.75,1.90,0); tgb.rotation.y=0.12;
+  const tgF=mesh(new THREE.BoxGeometry(0.5,0.30,0.40),mFuseD,obj,'fuselage');
+  tgF.position.set(-6.05,1.86,0); tgF.rotation.y=0.12;
+
+  // --- 4. 腹部货物吊钩 ---
+  const hookA=mesh(new THREE.CylinderGeometry(0.09,0.12,0.28,12),mDark,obj,'fuselage');
+  hookA.position.set(2.6,0.83,0);
+  const hookB=mesh(new THREE.TorusGeometry(0.10,0.028,10,20),mDark,obj,'fuselage');
+  hookB.position.set(2.6,0.66,0); hookB.rotation.x=Math.PI/2;
+
+  // --- 5. 机内网状士兵座椅(透过开启的舱门可见) ---
+  [1,-1].forEach(sgn=>{
+    for(let i=0;i<4;i++){
+      const x=1.35+i*0.85;
+      const cushion=mesh(new THREE.BoxGeometry(0.38,0.07,0.46),mSeat,obj,'cabin');
+      cushion.position.set(x,1.62,sgn*0.80);
+      const back=mesh(new THREE.BoxGeometry(0.06,0.46,0.46),mSeat,obj,'cabin');
+      back.position.set(x+0.17,1.86,sgn*0.98); back.rotation.z=-0.12;
+    }
+  });
+
+  // --- 6. 灯光组:机腹着陆灯 / 平尾翼尖航行灯 / 编队灯 ---
+  const landLight=mesh(new THREE.BoxGeometry(0.10,0.08,0.26),
+    M('fuselage',{color:0xfff6d8,emissive:0xd8c890,emissiveIntensity:0.9}),obj,'fuselage');
+  landLight.position.set(6.95,1.22,0);
+  const redL=mesh(new THREE.SphereGeometry(0.045,8,6),
+    M('fuselage',{color:0xff3333,emissive:0xcc1111,emissiveIntensity:1.4}),obj,'fuselage');
+  redL.position.set(-7.05,2.02,-2.12);
+  const grnL=mesh(new THREE.SphereGeometry(0.045,8,6),
+    M('fuselage',{color:0x33ff66,emissive:0x22cc55,emissiveIntensity:1.4}),obj,'fuselage');
+  grnL.position.set(-7.05,2.02,2.12);
+  [[2.9,-0.62,0x88aaff],[2.9,0.62,0x88aaff]].forEach(([x,z,col])=>{
+    const fl=mesh(new THREE.BoxGeometry(0.16,0.05,0.05),
+      M('fuselage',{color:col,emissive:col,emissiveIntensity:0.8}),obj,'fuselage');
+    fl.position.set(x,2.30,z);
+  });
+
+  // --- 7. 皮托管 ×2 + 风挡雨刷 ×2 + 刀形天线 ×3 ---
+  [1,-1].forEach(sgn=>{
+    const pt=mesh(new THREE.CylinderGeometry(0.012,0.018,0.42,8),mStrut,obj,'fuselage');
+    pt.rotation.z=Math.PI/2-0.15;
+    pt.position.set(7.35,1.86,sgn*0.62);
+  });
+  [0.45,-0.45].forEach(dz=>{
+    const wp=mesh(new THREE.BoxGeometry(0.015,0.30,0.02),mDark,obj,'cockpit');
+    wp.position.set(6.55,2.20,dz); wp.rotation.z=0.5;
+  });
+  [[-3.9,2.02,0.30],[-5.3,1.92,-0.32],[5.9,2.5,0.0]].forEach(([x,y,z])=>{
+    const an=mesh(new THREE.BoxGeometry(0.26,0.14,0.02),
+      M('fuselage',{color:0x2f3229,metalness:0.3,roughness:0.5}),obj,'fuselage');
+    an.position.set(x,y,z);
+  });
+
+  // --- 8. 救援绞车(右舱门上方) ---
+  const hoistA=mesh(new THREE.BoxGeometry(0.42,0.10,0.14),mDark,obj,'fuselage');
+  hoistA.position.set(3.15,2.42,0.95); hoistA.rotation.y=0.2;
+  const hoistB=mesh(new THREE.CylinderGeometry(0.05,0.05,0.34,10),mDark,obj,'fuselage');
+  hoistB.position.set(3.32,2.36,1.06); hoistB.rotation.z=Math.PI/2-0.3;
+  const cable=mesh(new THREE.CylinderGeometry(0.008,0.008,0.9,6),
+    M('fuselage',{color:0x222222,metalness:0.4,roughness:0.6}),obj,'fuselage');
+  cable.position.set(3.5,1.9,1.12);
+
+  // --- 9. 桨根接头(叶根黑色金属段) ---
+  for(let i=0;i<4;i++){
+    const a=i/4*Math.PI*2;
+    const grip=mesh(new THREE.CylinderGeometry(0.09,0.10,0.42,10),mHub,rotorSpin,'rotor');
+    grip.rotation.z=Math.PI/2;
+    grip.position.set(0.85,0.80,0);
+    grip.rotation.y=a;
+    const horn=mesh(new THREE.BoxGeometry(0.30,0.05,0.06),mOil,flapGroups[i],'rotor');
+    horn.position.x=0.50; horn.position.y=-0.10; horn.rotation.z=-0.25;
+  }
+  // 自动倾斜器作动筒 ×3(伸进机体)
+  for(let i=0;i<3;i++){
+    const a=i/3*Math.PI*2+0.5;
+    const act=mesh(new THREE.CylinderGeometry(0.035,0.045,0.42,8),mOil,rotorRoot,'rotor');
+    act.position.set(Math.sin(a)*0.16,0.10,Math.cos(a)*0.16);
+  }
+
+  // --- 10. 屋顶踏条(深灰防滑条) ---
+  [[1.1,1.9],[3.6,0.9]].forEach(([x,ww])=>{
+    const wk=mesh(new THREE.BoxGeometry(ww,0.015,0.62),
+      M('fuselage',{color:0x3d4238,metalness:0.2,roughness:0.75}),obj,'fuselage');
+    wk.position.set(x,2.462,0);
+  });
+
+  // --- 11. 排气筒隔热环 ---
+  [1,-1].forEach(sgn=>{
+    [0.25,-0.05].forEach(dx=>{
+      const hr=mesh(torusZ2(0.275,0.018),
+        M('engine',{color:0x3a362f,metalness:0.8,roughness:0.45}),obj,'engine');
+      hr.position.set(1.72+dx,2.72+(-dx)*0.55,sgn*0.06);
+      hr.rotation.z=Math.PI/2-0.62;
+    });
+  });
+
+  // --- 12. 涂装:侧舷 "UNITED STATES ARMY" + 垂尾机号 ---
+  function textPlane(text,sub,w,h,color='#d8dcd2',fs=0.16){
+    const c=document.createElement('canvas'); c.width=512; c.height=Math.round(512*h/w);
+    const g=c.getContext('2d');
+    g.clearRect(0,0,c.width,c.height);
+    g.fillStyle=color; g.font=`700 ${Math.round(c.height*fs)}px Inter,Arial`;
+    g.textBaseline='middle';
+    g.fillText(text,10,c.height*(sub?0.34:0.5));
+    if(sub){ g.font=`600 ${Math.round(c.height*0.17)}px Inter,Arial`;
+      g.fillText(sub,10,c.height*0.78); }
+    const tx=new THREE.CanvasTexture(c); tx.colorSpace=THREE.SRGBColorSpace;
+    tx.anisotropy=8;
+    const m=new THREE.MeshBasicMaterial({map:tx,transparent:true,
+      depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
+    return m;
+  }
+  const armMat=textPlane('UNITED STATES ARMY','UH-60L · 80-23457',3.2,0.6,'#d8dcd2',0.2);
+  [1,-1].forEach(sgn=>{
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.49),armMat);
+    pl.position.set(4.35,1.66,sgn*1.155);
+    pl.rotation.y=sgn>0?0:Math.PI;
+    obj.add(pl);
+  });
+  const finMat=textPlane('0-26371','',0.9,0.28,'#d8dcd2',0.45);
+  [1,-1].forEach(sgn=>{
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(0.95,0.27),finMat);
+    pl.position.set(-6.95,3.55,sgn*0.17);
+    pl.rotation.y=sgn>0?0.28:Math.PI-0.28;
+    finGroup.add(pl);
+  });
+
+  // --- 13. 尾梁检查踏板 ---
+  [[-2.2],[-4.0]].forEach(([x])=>{
+    const stp=mesh(new THREE.BoxGeometry(0.14,0.02,0.30),
+      M('fuselage',{color:0x3d4238,metalness:0.2,roughness:0.75}),obj,'fuselage');
+    stp.position.set(x,2.13,0.12);
+  });
+}
+
 
 /* ================= 部件文案 ================= */
 const PARTS={
@@ -982,7 +1148,7 @@ function loop(){
   /* 桨叶锥角/下垂 */
   const flapT=lerp(-2.2,2.8,wn)*D2R;
   flapGroups.forEach(f=>{ f.rotation.z=lerp(f.rotation.z,flapT,0.06); });
-  rotorRoot.userData.disc.material.opacity=0.13*wn;
+  rotorRoot.userData.disc.material.opacity=0.22*wn;
 
   /* 舱门/货桥 */
   state.doorT+=((state.door?1:0)-state.doorT)*Math.min(1,dt*2);
